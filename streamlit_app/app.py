@@ -178,10 +178,8 @@ def sidebar_navigation():
                 del st.session_state[key]
             st.rerun()
     
-    # Return the selected page (prioritize prediction pages if selected)
-    if prediction_page:
-        return prediction_page
-    return page
+    # Return both navigation values
+    return page, prediction_page
 
 def home_page():
     """Display home/dashboard page"""
@@ -1878,23 +1876,50 @@ def main():
         login_page()
     else:
         # Get navigation selection
-        page = sidebar_navigation()
+        page, prediction_page = sidebar_navigation()
+        
+        # Check which navigation was used (track state)
+        if 'last_navigation' not in st.session_state:
+            st.session_state.last_navigation = 'main'
+        if 'last_prediction' not in st.session_state:
+            st.session_state.last_prediction = '🌸 Iris Predictor'
+        if 'last_main' not in st.session_state:
+            st.session_state.last_main = '🏠 Home'
+        
+        # Determine which navigation changed
+        current_page = None
+        if page != st.session_state.last_main:
+            current_page = page
+            st.session_state.last_main = page
+            st.session_state.last_navigation = 'main'
+        elif prediction_page != st.session_state.last_prediction:
+            current_page = prediction_page
+            st.session_state.last_prediction = prediction_page
+            st.session_state.last_navigation = 'prediction'
+        else:
+            # Use the last active navigation
+            if st.session_state.last_navigation == 'main':
+                current_page = page
+            else:
+                current_page = prediction_page
         
         # Route to appropriate page
-        if page == "🏠 Home":
+        if current_page == "🏠 Home":
             home_page()
-        elif page == "🌸 Task 1: Iris Classification":
+        elif current_page == "🌸 Task 1: Iris Classification":
             task1_iris_page()
-        elif page == "🔢 Task 2: MNIST CNN":
+        elif current_page == "🔢 Task 2: MNIST CNN":
             task2_mnist_page()
-        elif page == "📝 Task 3: NLP Reviews":
+        elif current_page == "📝 Task 3: NLP Reviews":
             task3_nlp_page()
-        elif page == "🌸 Iris Predictor":
+        elif current_page == "🌸 Iris Predictor":
             iris_predictor_page()
-        elif page == "🔢 Digit Classifier":
+        elif current_page == "🔢 Digit Classifier":
             digit_classifier_page()
-        elif page == "📝 Review Analyzer":
+        elif current_page == "📝 Review Analyzer":
             review_analyzer_page()
+        else:
+            home_page()  # Default fallback
 
 if __name__ == "__main__":
     main()
