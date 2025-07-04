@@ -10,6 +10,27 @@ from datetime import datetime
 import os
 from PIL import Image
 import cv2
+import random
+
+# Try to import spacy and textblob with fallbacks
+try:
+    import spacy
+    try:
+        nlp = spacy.load("en_core_web_sm")
+        SPACY_AVAILABLE = True
+    except OSError:
+        SPACY_AVAILABLE = False
+        st.warning("spaCy English model not found. NLP features will be limited.")
+except ImportError:
+    SPACY_AVAILABLE = False
+    st.warning("spaCy not installed. NLP features will be limited.")
+
+try:
+    from textblob import TextBlob
+    TEXTBLOB_AVAILABLE = True
+except ImportError:
+    TEXTBLOB_AVAILABLE = False
+    st.warning("TextBlob not installed. Sentiment analysis will be limited.")
 
 # Try to import drawable canvas, fallback if not available
 try:
