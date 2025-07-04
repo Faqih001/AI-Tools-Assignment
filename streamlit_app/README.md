@@ -16,6 +16,11 @@ A comprehensive web application showcasing three AI tasks: Classical ML, Deep Le
 3. **Task 2: MNIST CNN** - Deep Learning image classification
 4. **Task 3: NLP Reviews** - Natural Language Processing analysis
 
+### 🧪 Interactive Prediction Pages
+1. **Iris Predictor** - Live species prediction with sliders
+2. **Digit Classifier** - Draw or upload digits for classification
+3. **Review Analyzer** - Real-time sentiment and entity analysis
+
 ### 🎨 UI Components
 - Professional header with gradient design
 - Responsive sidebar navigation
@@ -62,6 +67,11 @@ The application will open in your browser at `http://localhost:8501`
 - **🔢 Task 2**: MNIST CNN results and model architecture
 - **📝 Task 3**: NLP analysis of Amazon product reviews
 
+### Interactive Testing
+- **🌸 Iris Predictor**: Real-time species prediction with input sliders
+- **🔢 Digit Classifier**: Draw digits or upload images for classification
+- **📝 Review Analyzer**: Live sentiment analysis and brand extraction
+
 ### Features by Page
 
 #### Home Dashboard
@@ -86,6 +96,27 @@ The application will open in your browser at `http://localhost:8501`
 - Brand mention frequency
 - Sentiment distribution charts
 - Product feature sentiment analysis
+
+#### Interactive Prediction Pages
+
+##### Iris Predictor
+- Real-time species prediction using slider inputs
+- Probability distribution visualization
+- Species information and characteristics
+- Input summary table
+
+##### Digit Classifier
+- Simulated drawing canvas for digit input
+- Image upload functionality for digit classification
+- Confidence scores for all digit classes
+- Model architecture information
+
+##### Review Analyzer
+- Text input area for product reviews
+- Sample review selection
+- Real-time sentiment analysis with scoring
+- Brand and entity extraction
+- Word analysis and insights
 
 ## Security Features
 

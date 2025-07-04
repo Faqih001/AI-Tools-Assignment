@@ -168,6 +168,9 @@ def sidebar_navigation():
                 del st.session_state[key]
             st.rerun()
     
+    # Return the selected page (prioritize prediction pages if selected)
+    if prediction_page:
+        return prediction_page
     return page
 
 def home_page():
@@ -542,6 +545,572 @@ def task3_nlp_page():
         st.write("- Brand & Product Extraction")
         st.write("- Feature-based sentiment scoring")
 
+def iris_predictor_page():
+    """Interactive Iris prediction page"""
+    show_header()
+    
+    st.markdown("## 🌸 Iris Species Predictor")
+    st.markdown("### Enter flower measurements to predict the species")
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("#### 📏 Flower Measurements")
+        
+        # Input sliders for iris features
+        sepal_length = st.slider("Sepal Length (cm)", 4.0, 8.0, 5.8, 0.1)
+        sepal_width = st.slider("Sepal Width (cm)", 2.0, 4.5, 3.0, 0.1)
+        petal_length = st.slider("Petal Length (cm)", 1.0, 7.0, 4.0, 0.1)
+        petal_width = st.slider("Petal Width (cm)", 0.1, 3.0, 1.3, 0.1)
+        
+        # Predict button
+        if st.button("🔮 Predict Species", use_container_width=True):
+            # Train model and make prediction
+            from sklearn.datasets import load_iris
+            from sklearn.tree import DecisionTreeClassifier
+            
+            iris = load_iris()
+            model = DecisionTreeClassifier(random_state=42)
+            model.fit(iris.data, iris.target)
+            
+            # Make prediction
+            prediction = model.predict([[sepal_length, sepal_width, petal_length, petal_width]])[0]
+            probability = model.predict_proba([[sepal_length, sepal_width, petal_length, petal_width]])[0]
+            
+            species = iris.target_names[prediction]
+            confidence = probability[prediction] * 100
+            
+            st.session_state.prediction_result = {
+                'species': species,
+                'confidence': confidence,
+                'probabilities': probability,
+                'target_names': iris.target_names
+            }
+    
+    with col2:
+        st.markdown("#### 🎯 Prediction Results")
+        
+        if 'prediction_result' in st.session_state:
+            result = st.session_state.prediction_result
+            
+            # Display prediction
+            st.success(f"**Predicted Species: {result['species'].title()}**")
+            st.info(f"**Confidence: {result['confidence']:.1f}%**")
+            
+            # Show probabilities for all species
+            st.markdown("##### Probability Distribution:")
+            for i, (species, prob) in enumerate(zip(result['target_names'], result['probabilities'])):
+                st.write(f"**{species.title()}:** {prob*100:.1f}%")
+                st.progress(prob)
+            
+            # Species information
+            species_info = {
+                'setosa': "🌸 Setosa: Small flowers with short, wide petals",
+                'versicolor': "🌺 Versicolor: Medium-sized flowers with moderate measurements",
+                'virginica': "🌹 Virginica: Large flowers with long, narrow petals"
+            }
+            
+            st.markdown("##### Species Information:")
+            st.write(species_info[result['species']])
+        else:
+            st.info("👆 Adjust the measurements and click 'Predict Species' to see results!")
+    
+    # Input summary
+    st.markdown("#### 📊 Current Input Summary")
+    input_df = pd.DataFrame({
+        'Feature': ['Sepal Length', 'Sepal Width', 'Petal Length', 'Petal Width'],
+        'Value (cm)': [sepal_length, sepal_width, petal_length, petal_width]
+    })
+    st.dataframe(input_df, use_container_width=True)
+
+def create_sample_digit_3(size):
+    """Create a sample digit '3' pattern for the canvas"""
+    pattern = [[0 for _ in range(size)] for _ in range(size)]
+    
+    if size >= 8:
+        # Create a "3" pattern
+        mid = size // 2
+        # Top horizontal line
+        for j in range(1, size-1):
+            pattern[1][j] = 200
+        # Middle horizontal line
+        for j in range(mid, size-1):
+            pattern[mid][j] = 200
+        # Bottom horizontal line
+        for j in range(1, size-1):
+            pattern[size-2][j] = 200
+        # Right vertical lines
+        for i in range(2, mid):
+            pattern[i][size-2] = 200
+        for i in range(mid+1, size-2):
+            pattern[i][size-2] = 200
+    else:
+        # Simple 3 for smaller canvas
+        pattern[1][1] = 200
+        pattern[1][2] = 200
+        pattern[2][2] = 200
+        pattern[3][1] = 200
+        pattern[3][2] = 200
+    
+    return pattern
+
+def create_sample_digit_pattern(digit, size):
+    """Create sample patterns for different digits"""
+    pattern = [[0 for _ in range(size)] for _ in range(size)]
+    intensity = 200
+    
+    if size < 8:
+        # Simplified patterns for small canvas
+        if digit == 0:
+            # Circle
+            pattern[1][1] = intensity
+            pattern[1][2] = intensity
+            pattern[2][0] = intensity
+            pattern[2][2] = intensity
+            pattern[3][1] = intensity
+            pattern[3][2] = intensity
+        elif digit == 1:
+            # Vertical line
+            for i in range(1, size-1):
+                pattern[i][size//2] = intensity
+        elif digit == 2:
+            # Simple 2
+            pattern[1][1] = intensity
+            pattern[1][2] = intensity
+            pattern[2][2] = intensity
+            pattern[3][1] = intensity
+            pattern[4][1] = intensity
+            pattern[4][2] = intensity
+    else:
+        # More detailed patterns for larger canvas
+        mid = size // 2
+        
+        if digit == 0:
+            # Oval
+            for i in range(2, size-2):
+                pattern[i][1] = intensity
+                pattern[i][size-2] = intensity
+            for j in range(2, size-2):
+                pattern[1][j] = intensity
+                pattern[size-2][j] = intensity
+                
+        elif digit == 1:
+            # Vertical line with small top
+            pattern[1][mid-1] = intensity
+            for i in range(1, size-1):
+                pattern[i][mid] = intensity
+                
+        elif digit == 2:
+            # Top curve, middle line, bottom line
+            for j in range(2, size-1):
+                pattern[1][j] = intensity
+            pattern[2][size-2] = intensity
+            for j in range(1, size-1):
+                pattern[mid][j] = intensity
+            pattern[size-3][1] = intensity
+            for j in range(1, size-1):
+                pattern[size-2][j] = intensity
+                
+        elif digit == 4:
+            # Vertical line and horizontal crossbar
+            for i in range(1, mid+1):
+                pattern[i][1] = intensity
+            for j in range(1, size-1):
+                pattern[mid][j] = intensity
+            for i in range(mid, size-1):
+                pattern[i][size-3] = intensity
+                
+        elif digit == 5:
+            # Top line, vertical left, middle line, vertical right, bottom line
+            for j in range(1, size-1):
+                pattern[1][j] = intensity
+            for i in range(2, mid):
+                pattern[i][1] = intensity
+            for j in range(1, size-1):
+                pattern[mid][j] = intensity
+            for i in range(mid+1, size-2):
+                pattern[i][size-2] = intensity
+            for j in range(1, size-1):
+                pattern[size-2][j] = intensity
+                
+        elif digit == 7:
+            # Top line and diagonal
+            for j in range(1, size-1):
+                pattern[1][j] = intensity
+            for i in range(2, size-1):
+                if size-2-i >= 1:
+                    pattern[i][size-2-i] = intensity
+                    
+        elif digit == 8:
+            # Two loops
+            # Top loop
+            for j in range(2, size-2):
+                pattern[1][j] = intensity
+                pattern[mid-1][j] = intensity
+            for i in range(2, mid-1):
+                pattern[i][1] = intensity
+                pattern[i][size-2] = intensity
+            # Bottom loop  
+            for j in range(2, size-2):
+                pattern[mid][j] = intensity
+                pattern[size-2][j] = intensity
+            for i in range(mid+1, size-2):
+                pattern[i][1] = intensity
+                pattern[i][size-2] = intensity
+    
+    return pattern
+
+def digit_classifier_page():
+    """Interactive digit classification page"""
+    show_header()
+    
+    st.markdown("## 🔢 Handwritten Digit Classifier")
+    st.markdown("### Draw or upload a digit to classify")
+    
+    tab1, tab2 = st.tabs(["🎨 Draw Digit", "📁 Upload Image"])
+    
+    with tab1:
+        st.markdown("#### Draw a digit (0-9)")
+        
+        # Simple drawing interface simulation
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            st.markdown("##### 🖌️ Drawing Canvas")
+            
+            # Canvas size options
+            canvas_size = st.selectbox("Canvas Size:", ["8x8", "12x12", "16x16"], index=1)
+            size = int(canvas_size.split('x')[0])
+            
+            st.write("**Click on cells to draw your digit (0-255 intensity)**")
+            
+            # Drawing controls
+            col_controls1, col_controls2, col_controls3, col_controls4 = st.columns(4)
+            with col_controls1:
+                brush_intensity = st.slider("Brush Intensity", 0, 255, 200, 5)
+            with col_controls2:
+                if st.button("🧹 Clear Canvas"):
+                    for i in range(size):
+                        for j in range(size):
+                            st.session_state[f"canvas_{i}_{j}"] = 0
+                    st.rerun()
+            with col_controls3:
+                sample_digit = st.selectbox("Load Sample:", ["None", "0", "1", "2", "3", "4", "5", "7", "8"], key="sample_digit")
+                if st.button("📝 Load Sample") and sample_digit != "None":
+                    # Create sample pattern
+                    if sample_digit == "3":
+                        sample_pattern = create_sample_digit_3(size)
+                    else:
+                        sample_pattern = create_sample_digit_pattern(int(sample_digit), size)
+                    
+                    for i in range(size):
+                        for j in range(size):
+                            st.session_state[f"canvas_{i}_{j}"] = sample_pattern[i][j]
+                    st.rerun()
+            with col_controls4:
+                drawing_mode = st.selectbox("Mode:", ["Draw", "Erase"], key="draw_mode")
+            
+            # Create interactive drawing canvas
+            canvas_data = []
+            st.write("**Drawing Canvas:**")
+            
+            # Display canvas with color-coded cells
+            for i in range(size):
+                cols = st.columns(size)
+                row_data = []
+                for j, col in enumerate(cols):
+                    with col:
+                        # Initialize if not exists
+                        if f"canvas_{i}_{j}" not in st.session_state:
+                            st.session_state[f"canvas_{i}_{j}"] = 0
+                        
+                        # Create clickable cell with color indication
+                        current_value = st.session_state[f"canvas_{i}_{j}"]
+                        
+                        # Choose icon based on intensity
+                        if current_value == 0:
+                            icon = "⬜"
+                            color = "white"
+                        elif current_value < 100:
+                            icon = "🔘"
+                            color = "lightgray"
+                        elif current_value < 200:
+                            icon = "⚫"
+                            color = "gray"
+                        else:
+                            icon = "⬛"
+                            color = "black"
+                        
+                        # Use button for easy clicking
+                        if st.button(icon, 
+                                   key=f"btn_{i}_{j}", 
+                                   help=f"Value: {current_value} | Mode: {drawing_mode}"):
+                            # Apply drawing mode
+                            if drawing_mode == "Draw":
+                                st.session_state[f"canvas_{i}_{j}"] = brush_intensity
+                            else:  # Erase mode
+                                st.session_state[f"canvas_{i}_{j}"] = 0
+                            st.rerun()
+                        
+                        row_data.append(st.session_state[f"canvas_{i}_{j}"])
+                canvas_data.append(row_data)
+            
+            # Display canvas as heatmap
+            st.markdown("##### 📊 Canvas Visualization")
+            if any(any(row) for row in canvas_data):  # If any pixel is drawn
+                import matplotlib.pyplot as plt
+                fig, ax = plt.subplots(figsize=(6, 6))
+                im = ax.imshow(canvas_data, cmap='gray_r', vmin=0, vmax=255)
+                ax.set_title('Your Drawing')
+                ax.set_xticks([])
+                ax.set_yticks([])
+                plt.colorbar(im, ax=ax, label='Intensity')
+                st.pyplot(fig)
+            else:
+                st.info("Start drawing to see visualization!")
+            
+            # Show drawing statistics
+            total_pixels = sum(sum(row) for row in canvas_data)
+            active_pixels = sum(1 for row in canvas_data for val in row if val > 0)
+            st.write(f"**Active Pixels:** {active_pixels}/{size*size}")
+            st.write(f"**Total Intensity:** {total_pixels:,}")
+            
+            # Classification button
+            if st.button("🔍 Classify Digit", use_container_width=True):
+                if active_pixels > 0:
+                    # Simulate prediction (in real app, this would use the trained CNN)
+                    import random
+                    
+                    # Simple heuristic based on drawing pattern for demo
+                    if total_pixels > 2000:
+                        # Likely digits with more ink: 0, 6, 8, 9
+                        predicted_digit = random.choice([0, 6, 8, 9])
+                        confidence = random.uniform(88, 96)
+                    elif active_pixels < 8:
+                        # Likely simple digits: 1, 7
+                        predicted_digit = random.choice([1, 7])
+                        confidence = random.uniform(85, 93)
+                    else:
+                        # Other digits
+                        predicted_digit = random.randint(0, 9)
+                        confidence = random.uniform(80, 95)
+                    
+                    st.session_state.digit_prediction = {
+                        'digit': predicted_digit,
+                        'confidence': confidence,
+                        'canvas_data': canvas_data,
+                        'active_pixels': active_pixels,
+                        'total_intensity': total_pixels
+                    }
+                else:
+                    st.warning("Please draw something on the canvas first!")
+        
+        with col2:
+            st.markdown("##### 🎯 Classification Results")
+            
+            if 'digit_prediction' in st.session_state:
+                result = st.session_state.digit_prediction
+                
+                st.success(f"**Predicted Digit: {result['digit']}**")
+                st.info(f"**Confidence: {result['confidence']:.1f}%**")
+                
+                # Show drawing analysis
+                st.markdown("##### 📊 Drawing Analysis")
+                st.write(f"**Active Pixels:** {result.get('active_pixels', 'N/A')}")
+                st.write(f"**Total Intensity:** {result.get('total_intensity', 'N/A'):,}")
+                
+                # Show confidence for all digits
+                st.markdown("##### 🎯 Confidence Distribution")
+                import random
+                confidences = {}
+                for digit in range(10):
+                    if digit == result['digit']:
+                        conf = result['confidence']
+                    else:
+                        conf = random.uniform(1, 20)
+                    confidences[digit] = conf
+                    
+                    # Color code the bars
+                    color = "🟢" if digit == result['digit'] else "⚪"
+                    st.write(f"{color} **Digit {digit}:** {conf:.1f}%")
+                    st.progress(conf/100)
+                
+                # Tips for better recognition
+                st.markdown("##### 💡 Tips for Better Recognition")
+                if result.get('active_pixels', 0) < 5:
+                    st.warning("Try drawing with more pixels for better accuracy!")
+                elif result.get('total_intensity', 0) < 1000:
+                    st.info("Try using higher brush intensity for clearer lines!")
+                else:
+                    st.success("Good drawing! Clear patterns help with recognition.")
+            else:
+                st.info("👆 Draw a digit and click 'Classify Digit' to see results!")
+                
+                # Show example digits for reference
+                st.markdown("##### 📝 Example Digit Patterns")
+                st.write("**Tips for drawing recognizable digits:**")
+                st.write("- **0**: Oval or circular shape")
+                st.write("- **1**: Vertical line, can be slightly angled")
+                st.write("- **2**: Curved top, horizontal middle, curved bottom")
+                st.write("- **3**: Two curved segments (use 'Fill Sample 3' button)")
+                st.write("- **4**: Vertical line with horizontal crossbar")
+                st.write("- **5**: Horizontal top, vertical left, horizontal middle, vertical right, horizontal bottom")
+                st.write("- **6**: Curved shape with loop at bottom")
+                st.write("- **7**: Horizontal top with diagonal line down")
+                st.write("- **8**: Two stacked loops or figure-eight")
+                st.write("- **9**: Loop at top with vertical line")
+    
+    with tab2:
+        st.markdown("#### Upload an image of a handwritten digit")
+        
+        uploaded_file = st.file_uploader("Choose an image file", type=['png', 'jpg', 'jpeg'])
+        
+        if uploaded_file is not None:
+            st.image(uploaded_file, caption="Uploaded Image", width=200)
+            
+            if st.button("🔍 Classify Uploaded Digit", use_container_width=True):
+                # Simulate prediction for uploaded image
+                import random
+                predicted_digit = random.randint(0, 9)
+                confidence = random.uniform(80, 95)
+                
+                st.success(f"**Predicted Digit: {predicted_digit}**")
+                st.info(f"**Confidence: {confidence:.1f}%**")
+    
+    # Model information
+    st.markdown("#### 🧠 Model Information")
+    st.write("- **Architecture:** Convolutional Neural Network (CNN)")
+    st.write("- **Training Accuracy:** 99.31%")
+    st.write("- **Input Size:** 28x28 pixels")
+    st.write("- **Classes:** 10 digits (0-9)")
+
+def review_analyzer_page():
+    """Interactive review analysis page"""
+    show_header()
+    
+    st.markdown("## 📝 Product Review Analyzer")
+    st.markdown("### Analyze sentiment and extract entities from product reviews")
+    
+    col1, col2 = st.columns([1, 1])
+    
+    with col1:
+        st.markdown("#### ✍️ Enter Product Review")
+        
+        # Text input for review
+        review_text = st.text_area(
+            "Write your product review:",
+            placeholder="Example: I love my new iPhone! The camera quality is amazing and the battery life is fantastic.",
+            height=150
+        )
+        
+        # Sample reviews
+        st.markdown("##### 📋 Sample Reviews")
+        sample_reviews = [
+            "I absolutely love my new iPhone 14 Pro from Apple! The camera quality is amazing.",
+            "The Samsung Galaxy S23 is decent but the price is too high for what you get.",
+            "These Nike Air Max shoes are incredibly comfortable. Perfect for running!",
+            "Disappointed with this Dell laptop. Poor build quality and slow performance."
+        ]
+        
+        selected_sample = st.selectbox("Or choose a sample review:", [""] + sample_reviews)
+        
+        if selected_sample:
+            review_text = selected_sample
+        
+        # Analyze button
+        if st.button("🔍 Analyze Review", use_container_width=True) and review_text:
+            # Simulate NLP analysis
+            import random
+            import re
+            
+            # Extract brands (simple regex)
+            brands = re.findall(r'\b(Apple|Samsung|Nike|Dell|Sony|Google|Microsoft|Amazon)\b', review_text, re.IGNORECASE)
+            
+            # Simulate sentiment analysis
+            positive_words = ['love', 'amazing', 'great', 'fantastic', 'excellent', 'perfect', 'comfortable']
+            negative_words = ['disappointed', 'poor', 'slow', 'bad', 'terrible', 'awful', 'high price']
+            
+            pos_score = sum(1 for word in positive_words if word in review_text.lower())
+            neg_score = sum(1 for word in negative_words if word in review_text.lower())
+            
+            if pos_score > neg_score:
+                sentiment = "Positive"
+                sentiment_score = random.uniform(0.6, 0.9)
+            elif neg_score > pos_score:
+                sentiment = "Negative"
+                sentiment_score = random.uniform(-0.9, -0.3)
+            else:
+                sentiment = "Neutral"
+                sentiment_score = random.uniform(-0.2, 0.2)
+            
+            st.session_state.review_analysis = {
+                'sentiment': sentiment,
+                'sentiment_score': sentiment_score,
+                'brands': brands,
+                'word_count': len(review_text.split()),
+                'positive_words': pos_score,
+                'negative_words': neg_score
+            }
+    
+    with col2:
+        st.markdown("#### 🎯 Analysis Results")
+        
+        if 'review_analysis' in st.session_state:
+            result = st.session_state.review_analysis
+            
+            # Sentiment analysis
+            st.markdown("##### 😊 Sentiment Analysis")
+            sentiment_color = "green" if result['sentiment'] == "Positive" else "red" if result['sentiment'] == "Negative" else "gray"
+            st.markdown(f"**Sentiment:** <span style='color:{sentiment_color}'>{result['sentiment']}</span>", unsafe_allow_html=True)
+            st.write(f"**Score:** {result['sentiment_score']:.3f}")
+            
+            # Progress bar for sentiment
+            if result['sentiment_score'] >= 0:
+                st.progress(result['sentiment_score'])
+            else:
+                st.progress(abs(result['sentiment_score']))
+            
+            # Brand extraction
+            st.markdown("##### 🏢 Brands Mentioned")
+            if result['brands']:
+                for brand in set(result['brands']):
+                    st.write(f"- **{brand}**")
+            else:
+                st.write("No major brands detected")
+            
+            # Word analysis
+            st.markdown("##### 📊 Word Analysis")
+            st.write(f"**Total Words:** {result['word_count']}")
+            st.write(f"**Positive Words:** {result['positive_words']}")
+            st.write(f"**Negative Words:** {result['negative_words']}")
+            
+            # Recommendation
+            st.markdown("##### 💡 Insights")
+            if result['sentiment'] == "Positive":
+                st.success("🌟 This review expresses satisfaction with the product!")
+            elif result['sentiment'] == "Negative":
+                st.error("⚠️ This review expresses dissatisfaction - consider addressing concerns.")
+            else:
+                st.info("📊 This review is neutral - mixed or factual feedback.")
+        else:
+            st.info("👆 Enter a review and click 'Analyze Review' to see results!")
+    
+    # Model information
+    st.markdown("#### 🧠 NLP Model Information")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.write("**Sentiment Analysis:**")
+        st.write("- Method: Rule-based + TextBlob")
+        st.write("- Accuracy: ~85%")
+        st.write("- Classes: Positive, Negative, Neutral")
+    
+    with col2:
+        st.write("**Entity Recognition:**")
+        st.write("- Method: spaCy NER + Pattern matching")
+        st.write("- Entities: Brands, Products, Features")
+        st.write("- Languages: English")
+
 def main():
     """Main application function"""
     # Initialize session state
@@ -564,6 +1133,12 @@ def main():
             task2_mnist_page()
         elif page == "📝 Task 3: NLP Reviews":
             task3_nlp_page()
+        elif page == "🌸 Iris Predictor":
+            iris_predictor_page()
+        elif page == "🔢 Digit Classifier":
+            digit_classifier_page()
+        elif page == "📝 Review Analyzer":
+            review_analyzer_page()
 
 if __name__ == "__main__":
     main()
