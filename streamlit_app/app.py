@@ -9,8 +9,14 @@ import json
 from datetime import datetime
 import os
 from PIL import Image
-import cv2
 import random
+
+# Try to import OpenCV with fallback (optional for image processing)
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
 
 # Try to import spacy and textblob with fallbacks
 try:
@@ -1743,19 +1749,24 @@ def digit_classifier_page():
                         # Convert to grayscale using luminance formula
                         gray = np.dot(img[...,:3], [0.2989, 0.5870, 0.1140])
                     else:  # RGB
-                        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+                        if CV2_AVAILABLE:
+                            gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+                        else:
+                            # Convert RGB to grayscale using PIL
+                            gray = np.dot(img[...,:3], [0.2989, 0.5870, 0.1140])
                     
                     # Resize to 28x28 (MNIST standard)
-                    if CANVAS_AVAILABLE:
-                        try:
-                            import cv2
+                    try:
+                        if CV2_AVAILABLE:
                             resized = cv2.resize(gray, (28, 28), interpolation=cv2.INTER_AREA)
-                        except:
+                        else:
                             # Fallback using PIL
-                            pil_img = Image.fromarray(gray)
+                            pil_img = Image.fromarray(gray.astype(np.uint8))
                             resized = np.array(pil_img.resize((28, 28), Image.Resampling.LANCZOS))
-                    else:
-                        pil_img = Image.fromarray(gray)
+                    except Exception as e:
+                        # Final fallback using PIL
+                        pil_img = Image.fromarray(gray.astype(np.uint8))
+                        resized = np.array(pil_img.resize((28, 28), Image.Resampling.LANCZOS))
                         resized = np.array(pil_img.resize((28, 28), Image.Resampling.LANCZOS))
                     
                     # Normalize
