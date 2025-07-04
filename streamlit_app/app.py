@@ -143,21 +143,32 @@ def sidebar_navigation():
         
         st.markdown("---")
         
-        # Navigation menu
+        # Unified navigation menu with all pages
         page = st.selectbox(
-            "📋 Navigate to:",
-            ["🏠 Home", "🌸 Task 1: Iris Classification", "🔢 Task 2: MNIST CNN", "📝 Task 3: NLP Reviews"],
-            key="navigation"
+            "🧭 Navigate to Page:",
+            [
+                "🏠 Home Dashboard",
+                "--- 📋 Task Summary Pages ---",
+                "🌸 Task 1: Iris Classification",
+                "🔢 Task 2: MNIST CNN", 
+                "📝 Task 3: NLP Reviews",
+                "--- 🧪 Interactive Testing Pages ---",
+                "🌸 Iris Predictor",
+                "🔢 Digit Classifier",
+                "📝 Review Analyzer"
+            ],
+            key="unified_navigation"
         )
         
         st.markdown("---")
         
-        # Prediction/Testing menu
-        prediction_page = st.selectbox(
-            "🧪 Test Predictions:",
-            ["🌸 Iris Predictor", "🔢 Digit Classifier", "📝 Review Analyzer"],
-            key="prediction_navigation"
-        )
+        # Page type indicator
+        if "Task 1:" in page or "Task 2:" in page or "Task 3:" in page:
+            st.info("📋 **Task Summary Page** - View completed analysis results")
+        elif "Predictor" in page or "Classifier" in page or "Analyzer" in page:
+            st.success("🧪 **Interactive Testing Page** - Test models in real-time")
+        elif "Home" in page:
+            st.warning("🏠 **Dashboard** - Overview of all tasks")
         
         st.markdown("---")
         
@@ -172,14 +183,28 @@ def sidebar_navigation():
         
         st.markdown("---")
         
+        # Quick navigation tips
+        with st.expander("💡 Navigation Tips"):
+            st.write("**📋 Task Summary Pages:**")
+            st.write("• View completed analysis results")
+            st.write("• See model performance metrics")
+            st.write("• Review detailed findings")
+            st.write("")
+            st.write("**🧪 Interactive Testing Pages:**")
+            st.write("• Test models with your own input")
+            st.write("• Real-time predictions")
+            st.write("• Interactive visualizations")
+        
+        st.markdown("---")
+        
         # Logout button
         if st.button("🚪 Logout", use_container_width=True):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
     
-    # Return both navigation values
-    return page, prediction_page
+    # Return the selected page
+    return page
 
 def home_page():
     """Display home/dashboard page"""
@@ -1871,55 +1896,36 @@ def main():
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
     
-    # Check authentication
+    # Show login page if not logged in
     if not st.session_state.logged_in:
         login_page()
+        return
+    
+    # Get navigation choice from sidebar (now unified)
+    page = sidebar_navigation()
+    
+    # Handle navigation routing
+    if page == "🏠 Home Dashboard":
+        home_page()
+    elif page == "🌸 Task 1: Iris Classification":
+        task1_iris_page()
+    elif page == "🔢 Task 2: MNIST CNN":
+        task2_mnist_page()
+    elif page == "📝 Task 3: NLP Reviews":
+        task3_nlp_page()
+    elif page == "🌸 Iris Predictor":
+        iris_predictor_page()
+    elif page == "🔢 Digit Classifier":
+        digit_classifier_page()
+    elif page == "📝 Review Analyzer":
+        review_analyzer_page()
+    elif "---" in page:
+        # Handle section headers - show info and redirect to home
+        st.info("ℹ️ Please select a specific page from the navigation menu.")
+        home_page()
     else:
-        # Get navigation selection
-        page, prediction_page = sidebar_navigation()
-        
-        # Check which navigation was used (track state)
-        if 'last_navigation' not in st.session_state:
-            st.session_state.last_navigation = 'main'
-        if 'last_prediction' not in st.session_state:
-            st.session_state.last_prediction = '🌸 Iris Predictor'
-        if 'last_main' not in st.session_state:
-            st.session_state.last_main = '🏠 Home'
-        
-        # Determine which navigation changed
-        current_page = None
-        if page != st.session_state.last_main:
-            current_page = page
-            st.session_state.last_main = page
-            st.session_state.last_navigation = 'main'
-        elif prediction_page != st.session_state.last_prediction:
-            current_page = prediction_page
-            st.session_state.last_prediction = prediction_page
-            st.session_state.last_navigation = 'prediction'
-        else:
-            # Use the last active navigation
-            if st.session_state.last_navigation == 'main':
-                current_page = page
-            else:
-                current_page = prediction_page
-        
-        # Route to appropriate page
-        if current_page == "🏠 Home":
-            home_page()
-        elif current_page == "🌸 Task 1: Iris Classification":
-            task1_iris_page()
-        elif current_page == "🔢 Task 2: MNIST CNN":
-            task2_mnist_page()
-        elif current_page == "📝 Task 3: NLP Reviews":
-            task3_nlp_page()
-        elif current_page == "🌸 Iris Predictor":
-            iris_predictor_page()
-        elif current_page == "🔢 Digit Classifier":
-            digit_classifier_page()
-        elif current_page == "📝 Review Analyzer":
-            review_analyzer_page()
-        else:
-            home_page()  # Default fallback
+        # Default fallback
+        home_page()
 
 if __name__ == "__main__":
     main()
