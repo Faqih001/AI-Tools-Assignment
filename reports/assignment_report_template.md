@@ -1,14 +1,11 @@
 # AI Tools Assignment: Mastering the AI Toolkit
 
-**Team Name:** [Your Team Name]
+**Team Name:** Group 67 AI Software Engineers
 **Team Members:**
-- [Member 1 Name]
-- [Member 2 Name]
-- [Member 3 Name]
-- [Member 4 Name]
-- [Member 5 Name]
-
-**Date:** [Current Date]
+- Fakii Mohammed
+  - Andrew Ogembo
+  - Chiboniso Nyoni
+  - Peterson Kagiri
 
 ---
 
