@@ -71,13 +71,15 @@ The application will open in your browser at `http://localhost:8501`
 
 ### Navigation
 - **🏠 Home**: Dashboard overview with metrics and project summary
-- **🌸 Task 1**: Interactive Iris classification with Decision Trees
-- **🔢 Task 2**: MNIST CNN results and model architecture
-- **📝 Task 3**: NLP analysis of Amazon product reviews
 
-### Interactive Testing
+#### 📋 Navigate to: (Task Summary Pages)
+- **🌸 Task 1**: Iris Classification results and model performance summary
+- **🔢 Task 2**: MNIST CNN results, architecture, and training metrics
+- **📝 Task 3**: NLP analysis results and sample review insights
+
+#### 🧪 Test Predictions: (Interactive Testing Pages)
 - **🌸 Iris Predictor**: Real-time species prediction with input sliders
-- **🔢 Digit Classifier**: Draw digits or upload images for classification
+- **🔢 Digit Classifier**: Draw digits with mouse or upload images for classification
 - **📝 Review Analyzer**: Live sentiment analysis and brand extraction
 
 ### Features by Page
@@ -87,44 +89,48 @@ The application will open in your browser at `http://localhost:8501`
 - Technology stack overview
 - Project summary and achievements
 
-#### Task 1: Iris Classification
-- Real-time model training and evaluation
-- Interactive confusion matrix
+#### Task Summary Pages (📋 Navigate to:)
+
+##### Task 1: Iris Classification Summary
+- Model training results and evaluation metrics
+- Interactive confusion matrix and performance analysis
 - Feature importance visualization
-- Classification performance metrics
+- Classification accuracy and detailed statistics
 
-#### Task 2: MNIST CNN
-- Model architecture display
-- Per-class performance analysis
-- Training configuration details
-- Key insights and achievements
+##### Task 2: MNIST CNN Summary
+- Model architecture display and layer details
+- Per-class performance analysis and confusion matrix
+- Training configuration and hyperparameters
+- Key insights and achievements (99.31% accuracy)
 
-#### Task 3: NLP Reviews
-- Sample review analysis
-- Brand mention frequency
-- Sentiment distribution charts
-- Product feature sentiment analysis
+##### Task 3: NLP Reviews Summary
+- Sample review analysis and processing results
+- Brand mention frequency and extraction patterns
+- Sentiment distribution charts and statistics
+- Product feature sentiment analysis insights
 
-#### Interactive Prediction Pages
+#### Interactive Testing Pages (🧪 Test Predictions:)
 
 ##### Iris Predictor
 - Real-time species prediction using slider inputs
-- Probability distribution visualization
+- Probability distribution visualization for all species
 - Species information and characteristics
-- Input summary table
+- Input summary table with current measurements
 
 ##### Digit Classifier
-- Simulated drawing canvas for digit input
+- Mouse-based drawing canvas for digit input (black background, white brush)
+- Real-time prediction as you draw
 - Image upload functionality for digit classification
-- Confidence scores for all digit classes
-- Model architecture information
+- Confidence scores visualization for all digit classes (0-9)
+- Brush size and canvas controls
+- Technical details and drawing statistics
 
 ##### Review Analyzer
-- Text input area for product reviews
-- Sample review selection
-- Real-time sentiment analysis with scoring
-- Brand and entity extraction
-- Word analysis and insights
+- Text input area for custom product reviews
+- Sample review selection for quick testing
+- Real-time sentiment analysis with confidence scoring
+- Brand and entity extraction with highlighting
+- Word analysis and linguistic insights
 
 ## Security Features
 
