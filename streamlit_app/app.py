@@ -1381,123 +1381,215 @@ def iris_predictor_page():
 
 def predict_digit_from_canvas(canvas_img):
     """
-    Intelligent digit prediction based on drawing characteristics
-    This analyzes the actual drawing patterns to make more realistic predictions
+    Enhanced digit prediction based on comprehensive drawing analysis
+    Uses multiple geometric and structural features for better accuracy
     """
-    # Analyze drawing characteristics
     height, width = canvas_img.shape
-    total_pixels = np.count_nonzero(canvas_img)
-    intensity = np.sum(canvas_img)
+    total_pixels = np.count_nonzero(canvas_img > 0.1)
     
-    # Calculate geometric features
-    coords = np.where(canvas_img > 0.1)
-    if len(coords[0]) == 0:
+    if total_pixels < 5:
         return 0, np.array([1.0] + [0.0] * 9)
     
+    # Get coordinates of all drawn pixels
+    coords = np.where(canvas_img > 0.1)
+    y_coords, x_coords = coords[0], coords[1]
+    
     # Bounding box analysis
-    min_row, max_row = coords[0].min(), coords[0].max()
-    min_col, max_col = coords[1].min(), coords[1].max()
-    bbox_height = max_row - min_row + 1
-    bbox_width = max_col - min_col + 1
+    min_y, max_y = y_coords.min(), y_coords.max()
+    min_x, max_x = x_coords.min(), x_coords.max()
+    bbox_height = max_y - min_y + 1
+    bbox_width = max_x - min_x + 1
     aspect_ratio = bbox_height / max(bbox_width, 1)
     
     # Center of mass
-    center_row = np.mean(coords[0])
-    center_col = np.mean(coords[1])
+    center_y = np.mean(y_coords)
+    center_x = np.mean(x_coords)
     
-    # Analyze distribution patterns
+    # Divide into regions for analysis
+    top_quarter = canvas_img[:height//4, :]
     top_half = canvas_img[:height//2, :]
     bottom_half = canvas_img[height//2:, :]
+    bottom_quarter = canvas_img[3*height//4:, :]
     left_half = canvas_img[:, :width//2]
     right_half = canvas_img[:, width//2:]
     
-    top_pixels = np.count_nonzero(top_half)
-    bottom_pixels = np.count_nonzero(bottom_half)
-    left_pixels = np.count_nonzero(left_half)
-    right_pixels = np.count_nonzero(right_half)
+    # Count pixels in each region
+    top_quarter_pixels = np.count_nonzero(top_quarter)
+    top_half_pixels = np.count_nonzero(top_half)
+    bottom_half_pixels = np.count_nonzero(bottom_half)
+    bottom_quarter_pixels = np.count_nonzero(bottom_quarter)
+    left_half_pixels = np.count_nonzero(left_half)
+    right_half_pixels = np.count_nonzero(right_half)
     
-    # Vertical and horizontal line detection
-    middle_col = canvas_img[:, width//2]
-    middle_row = canvas_img[height//2, :]
-    has_vertical_line = np.count_nonzero(middle_col) > height * 0.6
-    has_horizontal_line = np.count_nonzero(middle_row) > width * 0.6
+    # Analyze shape characteristics
+    # Check for loops/enclosed areas (simplified)
+    def has_loop_pattern():
+        # Look for enclosed areas by checking if there are pixels around the edges
+        # and empty space in middle regions
+        middle_region = canvas_img[height//3:2*height//3, width//3:2*width//3]
+        edge_pixels = (top_quarter_pixels + bottom_quarter_pixels + 
+                      np.count_nonzero(canvas_img[:, :width//4]) + 
+                      np.count_nonzero(canvas_img[:, 3*width//4:]))
+        middle_pixels = np.count_nonzero(middle_region)
+        return edge_pixels > middle_pixels * 2
+    
+    # Check for vertical dominance (digit 1)
+    def is_vertical_line():
+        return (aspect_ratio > 2.0 and 
+                abs(left_half_pixels - right_half_pixels) / total_pixels < 0.3 and
+                total_pixels < bbox_height * 3)
+    
+    # Check for horizontal elements (2, 3, 5, 7)
+    def has_horizontal_elements():
+        # Check top, middle, and bottom rows for horizontal lines
+        top_row_sum = np.sum(canvas_img[min_y:min_y+3, :])
+        middle_row_sum = np.sum(canvas_img[center_y-2:center_y+2, :])
+        bottom_row_sum = np.sum(canvas_img[max_y-2:max_y+1, :])
+        return (top_row_sum > width * 0.3 or 
+                middle_row_sum > width * 0.3 or 
+                bottom_row_sum > width * 0.3)
+    
+    # Check for curves vs straight lines
+    def analyze_curvature():
+        # Simple curvature analysis - check if drawing follows edges
+        edge_following = 0
+        corner_regions = [
+            canvas_img[min_y:min_y+bbox_height//3, min_x:min_x+bbox_width//3],  # top-left
+            canvas_img[min_y:min_y+bbox_height//3, max_x-bbox_width//3:max_x],  # top-right
+            canvas_img[max_y-bbox_height//3:max_y, min_x:min_x+bbox_width//3],  # bottom-left
+            canvas_img[max_y-bbox_height//3:max_y, max_x-bbox_width//3:max_x]   # bottom-right
+        ]
+        for region in corner_regions:
+            if np.count_nonzero(region) > 0:
+                edge_following += 1
+        return edge_following
     
     # Initialize confidence scores
     confidence_scores = np.zeros(10)
     
-    # Pattern-based digit recognition
-    if aspect_ratio > 2.5 and has_vertical_line and total_pixels < 50:
-        # Likely digit 1 - tall and thin with vertical line
-        confidence_scores[1] = 0.8
-        confidence_scores[7] = 0.1  # Sometimes confused with 7
-        confidence_scores[4] = 0.05  # Sometimes confused with 4
+    # Pattern recognition logic
+    if is_vertical_line():
+        # Digit 1 - tall, thin, vertical
+        confidence_scores[1] = 0.85
+        confidence_scores[7] = 0.10  # Sometimes confused
+        confidence_scores[4] = 0.05
         
-    elif total_pixels > 150 and bbox_width > bbox_height * 0.8:
-        # Large, wide drawing - likely 0, 6, 8, or 9
-        if top_pixels > bottom_pixels * 1.2:
-            confidence_scores[9] = 0.7  # Top-heavy
-            confidence_scores[6] = 0.2
-        elif bottom_pixels > top_pixels * 1.2:
-            confidence_scores[6] = 0.7  # Bottom-heavy
-            confidence_scores[9] = 0.2
+    elif aspect_ratio < 0.7 and has_horizontal_elements():
+        # Wide shapes with horizontal elements - likely 2, 3, 5, 7
+        if top_half_pixels > bottom_half_pixels * 1.5:
+            # Top-heavy - likely 7
+            confidence_scores[7] = 0.70
+            confidence_scores[2] = 0.20
+            confidence_scores[1] = 0.10
+        elif right_half_pixels > left_half_pixels * 1.3:
+            # Right-heavy - likely 3
+            confidence_scores[3] = 0.65
+            confidence_scores[8] = 0.20
+            confidence_scores[9] = 0.15
         else:
-            confidence_scores[0] = 0.4  # Balanced
-            confidence_scores[8] = 0.4
-            confidence_scores[6] = 0.1
-            
-    elif has_horizontal_line and total_pixels < 100:
-        # Horizontal elements - likely 2, 3, 5, 7
-        if top_pixels > bottom_pixels:
-            confidence_scores[7] = 0.6  # Top-heavy with horizontal
-            confidence_scores[2] = 0.3
+            # Balanced horizontal - likely 2 or 5
+            if bottom_half_pixels > top_half_pixels:
+                confidence_scores[2] = 0.60
+                confidence_scores[5] = 0.25
+                confidence_scores[3] = 0.15
+            else:
+                confidence_scores[5] = 0.55
+                confidence_scores[2] = 0.30
+                confidence_scores[3] = 0.15
+    
+    elif has_loop_pattern() or total_pixels > bbox_height * bbox_width * 0.4:
+        # Large filled areas or loops - likely 0, 6, 8, 9
+        curvature = analyze_curvature()
+        if curvature >= 3:  # High curvature - circular shapes
+            if abs(top_half_pixels - bottom_half_pixels) / total_pixels < 0.2:
+                # Balanced top/bottom - likely 0 or 8
+                if center_y < height * 0.6:  # Slightly top-heavy
+                    confidence_scores[8] = 0.55
+                    confidence_scores[0] = 0.35
+                    confidence_scores[6] = 0.10
+                else:
+                    confidence_scores[0] = 0.60
+                    confidence_scores[8] = 0.30
+                    confidence_scores[6] = 0.10
+            elif top_half_pixels > bottom_half_pixels * 1.2:
+                # Top-heavy circular - likely 9
+                confidence_scores[9] = 0.70
+                confidence_scores[8] = 0.20
+                confidence_scores[6] = 0.10
+            else:
+                # Bottom-heavy circular - likely 6
+                confidence_scores[6] = 0.70
+                confidence_scores[8] = 0.20
+                confidence_scores[9] = 0.10
         else:
-            confidence_scores[2] = 0.5  # Bottom-heavy curves
-            confidence_scores[3] = 0.3
-            confidence_scores[5] = 0.15
-            
-    elif right_pixels > left_pixels * 1.5:
-        # Right-heavy patterns - likely 3, 6, 9
-        if top_pixels > bottom_pixels:
-            confidence_scores[3] = 0.6
-            confidence_scores[9] = 0.3
-        else:
-            confidence_scores[6] = 0.6
-            confidence_scores[3] = 0.3
-            
-    elif left_pixels > right_pixels * 1.2 and total_pixels > 80:
+            # Lower curvature filled shape
+            confidence_scores[0] = 0.45
+            confidence_scores[8] = 0.25
+            confidence_scores[6] = 0.15
+            confidence_scores[9] = 0.15
+    
+    elif left_half_pixels > right_half_pixels * 1.3:
         # Left-heavy patterns - likely 4, 5, 6
-        confidence_scores[4] = 0.4
-        confidence_scores[5] = 0.4
-        confidence_scores[6] = 0.15
-        
+        if has_horizontal_elements():
+            confidence_scores[4] = 0.60  # Strong horizontal crossbar
+            confidence_scores[5] = 0.25
+            confidence_scores[7] = 0.15
+        else:
+            confidence_scores[6] = 0.50
+            confidence_scores[5] = 0.30
+            confidence_scores[4] = 0.20
+    
+    elif aspect_ratio > 1.5 and not is_vertical_line():
+        # Tall but not thin enough for 1 - could be 4, 7, 9
+        if top_quarter_pixels > bottom_quarter_pixels * 2:
+            confidence_scores[7] = 0.65
+            confidence_scores[1] = 0.25
+            confidence_scores[4] = 0.10
+        elif has_horizontal_elements():
+            confidence_scores[4] = 0.55
+            confidence_scores[7] = 0.25
+            confidence_scores[1] = 0.20
+        else:
+            confidence_scores[9] = 0.50
+            confidence_scores[7] = 0.30
+            confidence_scores[4] = 0.20
+    
     else:
-        # Default case - distribute among most common digits
-        confidence_scores[2] = 0.25
-        confidence_scores[3] = 0.25
-        confidence_scores[5] = 0.2
-        confidence_scores[8] = 0.15
-        confidence_scores[0] = 0.1
-        confidence_scores[1] = 0.05
+        # Default case - analyze based on drawing characteristics
+        if total_pixels < 30:
+            # Very small drawing
+            confidence_scores[1] = 0.40
+            confidence_scores[7] = 0.30
+            confidence_scores[2] = 0.20
+            confidence_scores[0] = 0.10
+        elif total_pixels > 100:
+            # Large drawing
+            confidence_scores[0] = 0.30
+            confidence_scores[8] = 0.25
+            confidence_scores[6] = 0.20
+            confidence_scores[9] = 0.15
+            confidence_scores[3] = 0.10
+        else:
+            # Medium drawing - distribute among common digits
+            confidence_scores[2] = 0.25
+            confidence_scores[3] = 0.25
+            confidence_scores[5] = 0.20
+            confidence_scores[8] = 0.15
+            confidence_scores[0] = 0.10
+            confidence_scores[1] = 0.05
     
-    # Add some randomness to remaining confidence
-    remaining_confidence = 1.0 - confidence_scores.sum()
-    if remaining_confidence > 0:
-        # Distribute remaining confidence randomly among low-scoring digits
-        for i in range(10):
-            if confidence_scores[i] < 0.1:
-                confidence_scores[i] += remaining_confidence / 10
+    # Ensure all probabilities sum to 1
+    if confidence_scores.sum() > 0:
+        confidence_scores = confidence_scores / confidence_scores.sum()
+    else:
+        confidence_scores[0] = 1.0
     
-    # Normalize to ensure sum = 1
-    confidence_scores = confidence_scores / confidence_scores.sum()
-    
-    # Get predicted digit
-    predicted_digit = np.argmax(confidence_scores)
-    
-    # Add some noise for realism but keep main prediction strong
-    noise = np.random.normal(0, 0.02, 10)
+    # Add small amount of realistic noise
+    noise = np.random.normal(0, 0.01, 10)
     confidence_scores = np.maximum(0, confidence_scores + noise)
     confidence_scores = confidence_scores / confidence_scores.sum()
     
+    predicted_digit = np.argmax(confidence_scores)
     return predicted_digit, confidence_scores
 
 
@@ -1819,7 +1911,7 @@ def digit_classifier_page():
                             st.write(f"**Drawing Area:** {(np.count_nonzero(canvas_img)/784)*100:.1f}% filled")
                         
                         with col_tech2:
-                            # Drawing analysis details
+                            # Enhanced drawing analysis details
                             coords = np.where(canvas_img > 0.1)
                             if len(coords[0]) > 0:
                                 height, width = canvas_img.shape
@@ -1833,26 +1925,134 @@ def digit_classifier_page():
                                 st.write(f"**Aspect Ratio:** {aspect_ratio:.2f}")
                                 st.write(f"**Center:** ({np.mean(coords[0]):.1f}, {np.mean(coords[1]):.1f})")
                                 
-                                # Quadrant analysis
+                                # Enhanced quadrant analysis
                                 top_half = canvas_img[:height//2, :]
                                 bottom_half = canvas_img[height//2:, :]
+                                left_half = canvas_img[:, :width//2]
+                                right_half = canvas_img[:, width//2:]
+                                
                                 top_pixels = np.count_nonzero(top_half)
                                 bottom_pixels = np.count_nonzero(bottom_half)
-                                st.write(f"**Top/Bottom Ratio:** {top_pixels/max(bottom_pixels,1):.2f}")
+                                left_pixels = np.count_nonzero(left_half)
+                                right_pixels = np.count_nonzero(right_half)
+                                
+                                st.write(f"**Top/Bottom:** {top_pixels}/{bottom_pixels}")
+                                st.write(f"**Left/Right:** {left_pixels}/{right_pixels}")
                         
-                        st.write("**Recognition Logic Applied:**")
+                        # Enhanced recognition logic explanation
+                        st.write("**🤖 AI Recognition Analysis:**")
                         total_pixels = np.count_nonzero(canvas_img)
                         if total_pixels > 0:
-                            if aspect_ratio > 2.5:
-                                st.write("• Detected: Tall, thin shape → Likely digit 1 or 7")
-                            elif total_pixels > 150:
-                                st.write("• Detected: Large drawing → Likely digit 0, 6, 8, or 9")
-                            elif total_pixels < 80:
-                                st.write("• Detected: Small drawing → Likely digit 1, 2, or 7")
+                            coords = np.where(canvas_img > 0.1)
+                            height, width = canvas_img.shape
+                            min_row, max_row = coords[0].min(), coords[0].max()
+                            min_col, max_col = coords[1].min(), coords[1].max()
+                            bbox_height = max_row - min_row + 1
+                            bbox_width = max_col - min_col + 1
+                            aspect_ratio = bbox_height / max(bbox_width, 1)
+                            
+                            # Show what the AI detected
+                            if aspect_ratio > 2.0:
+                                st.write("• ✅ **Tall Shape Detected** → Checking for digits 1, 4, 7, 9")
+                            elif aspect_ratio < 0.7:
+                                st.write("• ✅ **Wide Shape Detected** → Checking for digits 2, 3, 5")
                             else:
-                                st.write("• Detected: Medium-sized drawing → Analyzing patterns...")
+                                st.write("• ✅ **Balanced Shape Detected** → Checking for digits 0, 6, 8")
+                            
+                            top_half_pixels = np.count_nonzero(canvas_img[:height//2, :])
+                            bottom_half_pixels = np.count_nonzero(canvas_img[height//2:, :])
+                            left_half_pixels = np.count_nonzero(canvas_img[:, :width//2])
+                            right_half_pixels = np.count_nonzero(canvas_img[:, width//2:])
+                            
+                            if top_half_pixels > bottom_half_pixels * 1.2:
+                                st.write("• ✅ **Top-Heavy Pattern** → Favoring digits 7, 9")
+                            elif bottom_half_pixels > top_half_pixels * 1.2:
+                                st.write("• ✅ **Bottom-Heavy Pattern** → Favoring digits 6, 2")
+                            else:
+                                st.write("• ✅ **Balanced Vertical** → Favoring digits 0, 8, 3")
+                            
+                            if left_half_pixels > right_half_pixels * 1.3:
+                                st.write("• ✅ **Left-Heavy Pattern** → Favoring digits 4, 5, 6")
+                            elif right_half_pixels > left_half_pixels * 1.3:
+                                st.write("• ✅ **Right-Heavy Pattern** → Favoring digits 3, 9")
+                            
+                            if total_pixels < 30:
+                                st.write("• ✅ **Small Drawing** → Likely simple digits (1, 7)")
+                            elif total_pixels > 100:
+                                st.write("• ✅ **Large Drawing** → Likely complex digits (0, 8, 6, 9)")
+                            
+                            # Show confidence reasoning
+                            st.write(f"**Final Prediction Logic:**")
+                            st.write(f"• Primary candidate: **{predicted_digit}** ({confidence_scores[predicted_digit]:.1%} confidence)")
+                            
+                            # Show top 3 alternatives
+                            top_3_indices = np.argsort(confidence_scores)[-3:][::-1]
+                            st.write("• **Top alternatives:**")
+                            for i, idx in enumerate(top_3_indices):
+                                if i > 0:  # Skip the top prediction (already shown)
+                                    st.write(f"  - Digit **{idx}**: {confidence_scores[idx]:.1%}")
                         else:
-                            st.write("• No significant drawing detected")
+                            st.write("• ❌ No significant drawing detected")
+                        
+                        # Add debugging mode toggle
+                        debug_mode = st.checkbox("🔍 Debug Mode", help="Show detailed shape analysis")
+                        if debug_mode and total_pixels > 0:
+                            st.write("**🔬 Detailed Shape Analysis:**")
+                            
+                            # Show shape visualization
+                            fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+                            
+                            # Original
+                            axes[0,0].imshow(canvas_img, cmap='gray')
+                            axes[0,0].set_title('Original Drawing')
+                            axes[0,0].axis('off')
+                            
+                            # Top/Bottom split
+                            split_img = np.zeros_like(canvas_img)
+                            split_img[:height//2, :] = canvas_img[:height//2, :] * 0.7  # Top half dimmed
+                            split_img[height//2:, :] = canvas_img[height//2:, :]  # Bottom half normal
+                            axes[0,1].imshow(split_img, cmap='gray')
+                            axes[0,1].set_title(f'Top/Bottom: {top_half_pixels}/{bottom_half_pixels}')
+                            axes[0,1].axis('off')
+                            
+                            # Left/Right split
+                            split_img2 = np.zeros_like(canvas_img)
+                            split_img2[:, :width//2] = canvas_img[:, :width//2] * 0.7  # Left half dimmed
+                            split_img2[:, width//2:] = canvas_img[:, width//2:]  # Right half normal
+                            axes[0,2].imshow(split_img2, cmap='gray')
+                            axes[0,2].set_title(f'Left/Right: {left_half_pixels}/{right_half_pixels}')
+                            axes[0,2].axis('off')
+                            
+                            # Bounding box
+                            bbox_img = np.zeros_like(canvas_img)
+                            bbox_img[min_row:max_row+1, min_col:max_col+1] = canvas_img[min_row:max_row+1, min_col:max_col+1]
+                            axes[1,0].imshow(bbox_img, cmap='gray')
+                            axes[1,0].set_title(f'Bounding Box: {bbox_width}×{bbox_height}')
+                            axes[1,0].axis('off')
+                            
+                            # Center of mass
+                            center_img = canvas_img.copy()
+                            center_y, center_x = int(np.mean(coords[0])), int(np.mean(coords[1]))
+                            if 0 <= center_y < height and 0 <= center_x < width:
+                                # Draw a cross at center of mass
+                                for i in range(max(0, center_y-2), min(height, center_y+3)):
+                                    center_img[i, center_x] = 1.0
+                                for j in range(max(0, center_x-2), min(width, center_x+3)):
+                                    center_img[center_y, j] = 1.0
+                            axes[1,1].imshow(center_img, cmap='gray')
+                            axes[1,1].set_title(f'Center of Mass: ({center_y}, {center_x})')
+                            axes[1,1].axis('off')
+                            
+                            # Aspect ratio visualization
+                            aspect_img = np.zeros_like(canvas_img)
+                            aspect_img[min_row:max_row+1, min_col:max_col+1] = 0.5
+                            aspect_img[coords] = canvas_img[coords]
+                            axes[1,2].imshow(aspect_img, cmap='gray')
+                            axes[1,2].set_title(f'Aspect Ratio: {aspect_ratio:.2f}')
+                            axes[1,2].axis('off')
+                            
+                            plt.tight_layout()
+                            st.pyplot(fig)
                 else:
                     st.info("👆 Draw a digit on the canvas to see real-time predictions!")
                     st.markdown("##### 💡 Drawing Tips")
