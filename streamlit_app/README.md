@@ -48,6 +48,14 @@ python -m spacy download en_core_web_sm
 ```
 
 ### 4. Run the Application
+
+#### Option 1: Using the Quick Start Script
+```bash
+chmod +x run_app.sh
+./run_app.sh
+```
+
+#### Option 2: Manual Command
 ```bash
 streamlit run app.py
 ```
@@ -150,6 +158,7 @@ The application will open in your browser at `http://localhost:8501`
 streamlit_app/
 ├── app.py              # Main Streamlit application
 ├── requirements.txt    # Python dependencies
+├── run_app.sh         # Quick start script
 ├── README.md          # This file
 ├── users.json         # User accounts (auto-generated)
 └── .streamlit/        # Streamlit configuration (optional)
@@ -175,6 +184,14 @@ streamlit_app/
 ## Deployment Options
 
 ### Local Development
+
+#### Quick Start (Recommended)
+```bash
+chmod +x run_app.sh
+./run_app.sh
+```
+
+#### Manual Start
 ```bash
 streamlit run app.py
 ```

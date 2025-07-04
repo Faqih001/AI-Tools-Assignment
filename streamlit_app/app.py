@@ -8,6 +8,16 @@ import hashlib
 import json
 from datetime import datetime
 import os
+from PIL import Image
+import cv2
+
+# Try to import drawable canvas, fallback if not available
+try:
+    from streamlit_drawable_canvas import st_canvas
+    CANVAS_AVAILABLE = True
+except ImportError:
+    CANVAS_AVAILABLE = False
+    st.warning("streamlit-drawable-canvas not installed. Using simplified drawing interface.")
 
 # Configure page
 st.set_page_config(
@@ -770,195 +780,218 @@ def digit_classifier_page():
     tab1, tab2 = st.tabs(["🎨 Draw Digit", "📁 Upload Image"])
     
     with tab1:
-        st.markdown("#### Draw a digit (0-9)")
+        st.markdown("#### 🖌️ Draw a digit (0-9) with your mouse")
         
-        # Simple drawing interface simulation
         col1, col2 = st.columns([1, 1])
         
         with col1:
-            st.markdown("##### 🖌️ Drawing Canvas")
+            st.markdown("##### 🎨 Drawing Canvas")
             
-            # Canvas size options
-            canvas_size = st.selectbox("Canvas Size:", ["8x8", "12x12", "16x16"], index=1)
-            size = int(canvas_size.split('x')[0])
-            
-            st.write("**Click on cells to draw your digit (0-255 intensity)**")
-            
-            # Drawing controls
-            col_controls1, col_controls2, col_controls3, col_controls4 = st.columns(4)
-            with col_controls1:
-                brush_intensity = st.slider("Brush Intensity", 0, 255, 200, 5)
-            with col_controls2:
-                if st.button("🧹 Clear Canvas"):
-                    for i in range(size):
-                        for j in range(size):
-                            st.session_state[f"canvas_{i}_{j}"] = 0
+            if CANVAS_AVAILABLE:
+                # Drawing controls
+                col_ctrl1, col_ctrl2 = st.columns(2)
+                with col_ctrl1:
+                    stroke_width = st.slider("Brush Size", 1, 25, 15)
+                    stroke_color = st.color_picker("Brush Color", "#FFFFFF")
+                with col_ctrl2:
+                    canvas_size = st.selectbox("Canvas Size", [280, 400, 560], index=0)
+                    bg_color = st.color_picker("Background", "#000000")
+                
+                # Create the drawable canvas
+                canvas_result = st_canvas(
+                    fill_color="rgba(255, 165, 0, 0.3)",  # Fill color with some transparency
+                    stroke_width=stroke_width,
+                    stroke_color=stroke_color,
+                    background_color=bg_color,
+                    background_image=None,
+                    update_streamlit=True,
+                    height=canvas_size,
+                    width=canvas_size,
+                    drawing_mode="freedraw",
+                    point_display_radius=0,
+                    key="canvas",
+                )
+                
+                # Clear canvas button
+                if st.button("🧹 Clear Canvas", use_container_width=True):
                     st.rerun()
-            with col_controls3:
-                sample_digit = st.selectbox("Load Sample:", ["None", "0", "1", "2", "3", "4", "5", "7", "8"], key="sample_digit")
-                if st.button("📝 Load Sample") and sample_digit != "None":
-                    # Create sample pattern
-                    if sample_digit == "3":
-                        sample_pattern = create_sample_digit_3(size)
-                    else:
-                        sample_pattern = create_sample_digit_pattern(int(sample_digit), size)
+                
+                # Process the canvas data
+                if canvas_result.image_data is not None:
+                    # Convert to grayscale and resize to 28x28 for MNIST-like input
+                    img = canvas_result.image_data.astype(np.uint8)
                     
-                    for i in range(size):
-                        for j in range(size):
-                            st.session_state[f"canvas_{i}_{j}"] = sample_pattern[i][j]
-                    st.rerun()
-            with col_controls4:
-                drawing_mode = st.selectbox("Mode:", ["Draw", "Erase"], key="draw_mode")
-            
-            # Create interactive drawing canvas
-            canvas_data = []
-            st.write("**Drawing Canvas:**")
-            
-            # Display canvas with color-coded cells
-            for i in range(size):
-                cols = st.columns(size)
-                row_data = []
-                for j, col in enumerate(cols):
-                    with col:
-                        # Initialize if not exists
-                        if f"canvas_{i}_{j}" not in st.session_state:
-                            st.session_state[f"canvas_{i}_{j}"] = 0
-                        
-                        # Create clickable cell with color indication
-                        current_value = st.session_state[f"canvas_{i}_{j}"]
-                        
-                        # Choose icon based on intensity
-                        if current_value == 0:
-                            icon = "⬜"
-                            color = "white"
-                        elif current_value < 100:
-                            icon = "🔘"
-                            color = "lightgray"
-                        elif current_value < 200:
-                            icon = "⚫"
-                            color = "gray"
-                        else:
-                            icon = "⬛"
-                            color = "black"
-                        
-                        # Use button for easy clicking
-                        if st.button(icon, 
-                                   key=f"btn_{i}_{j}", 
-                                   help=f"Value: {current_value} | Mode: {drawing_mode}"):
-                            # Apply drawing mode
-                            if drawing_mode == "Draw":
-                                st.session_state[f"canvas_{i}_{j}"] = brush_intensity
-                            else:  # Erase mode
-                                st.session_state[f"canvas_{i}_{j}"] = 0
-                            st.rerun()
-                        
-                        row_data.append(st.session_state[f"canvas_{i}_{j}"])
-                canvas_data.append(row_data)
-            
-            # Display canvas as heatmap
-            st.markdown("##### 📊 Canvas Visualization")
-            if any(any(row) for row in canvas_data):  # If any pixel is drawn
-                import matplotlib.pyplot as plt
-                fig, ax = plt.subplots(figsize=(6, 6))
-                im = ax.imshow(canvas_data, cmap='gray_r', vmin=0, vmax=255)
-                ax.set_title('Your Drawing')
-                ax.set_xticks([])
-                ax.set_yticks([])
-                plt.colorbar(im, ax=ax, label='Intensity')
-                st.pyplot(fig)
+                    # Convert RGBA to grayscale
+                    if img.shape[2] == 4:  # RGBA
+                        # Convert to grayscale using luminance formula
+                        gray = np.dot(img[...,:3], [0.2989, 0.5870, 0.1140])
+                    else:  # RGB
+                        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+                    
+                    # Resize to 28x28 (MNIST standard)
+                    if CANVAS_AVAILABLE:
+                        try:
+                            import cv2
+                            resized = cv2.resize(gray, (28, 28), interpolation=cv2.INTER_AREA)
+                        except:
+                            # Fallback using PIL
+                            pil_img = Image.fromarray(gray)
+                            resized = np.array(pil_img.resize((28, 28), Image.Resampling.LANCZOS))
+                    else:
+                        pil_img = Image.fromarray(gray)
+                        resized = np.array(pil_img.resize((28, 28), Image.Resampling.LANCZOS))
+                    
+                    # Normalize
+                    normalized = resized / 255.0
+                    
+                    # Store in session state
+                    st.session_state.canvas_image = normalized
+                    st.session_state.raw_canvas = gray
+                    
+                    # Show processed image
+                    st.markdown("##### 📊 Processed Image (28x28)")
+                    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
+                    
+                    # Original drawing
+                    ax1.imshow(gray, cmap='gray')
+                    ax1.set_title('Your Drawing')
+                    ax1.axis('off')
+                    
+                    # Processed for prediction
+                    ax2.imshow(resized, cmap='gray')
+                    ax2.set_title('Processed (28x28)')
+                    ax2.axis('off')
+                    
+                    st.pyplot(fig)
+                    
+                    # Calculate drawing statistics
+                    non_zero_pixels = np.count_nonzero(resized)
+                    total_intensity = np.sum(resized)
+                    
+                    st.write(f"**Active Pixels:** {non_zero_pixels}/784")
+                    st.write(f"**Average Intensity:** {total_intensity/784:.3f}")
+                    
             else:
-                st.info("Start drawing to see visualization!")
-            
-            # Show drawing statistics
-            total_pixels = sum(sum(row) for row in canvas_data)
-            active_pixels = sum(1 for row in canvas_data for val in row if val > 0)
-            st.write(f"**Active Pixels:** {active_pixels}/{size*size}")
-            st.write(f"**Total Intensity:** {total_pixels:,}")
-            
-            # Classification button
-            if st.button("🔍 Classify Digit", use_container_width=True):
-                if active_pixels > 0:
-                    # Simulate prediction (in real app, this would use the trained CNN)
-                    import random
-                    
-                    # Simple heuristic based on drawing pattern for demo
-                    if total_pixels > 2000:
-                        # Likely digits with more ink: 0, 6, 8, 9
-                        predicted_digit = random.choice([0, 6, 8, 9])
-                        confidence = random.uniform(88, 96)
-                    elif active_pixels < 8:
-                        # Likely simple digits: 1, 7
-                        predicted_digit = random.choice([1, 7])
-                        confidence = random.uniform(85, 93)
-                    else:
-                        # Other digits
-                        predicted_digit = random.randint(0, 9)
-                        confidence = random.uniform(80, 95)
-                    
-                    st.session_state.digit_prediction = {
-                        'digit': predicted_digit,
-                        'confidence': confidence,
-                        'canvas_data': canvas_data,
-                        'active_pixels': active_pixels,
-                        'total_intensity': total_pixels
-                    }
-                else:
-                    st.warning("Please draw something on the canvas first!")
+                # Fallback simple drawing interface
+                st.warning("Advanced drawing canvas not available. Using simplified interface.")
+                st.write("Install streamlit-drawable-canvas for full mouse drawing functionality:")
+                st.code("pip install streamlit-drawable-canvas")
+                
+                # Simple grid fallback
+                canvas_data = []
+                for i in range(8):
+                    cols = st.columns(8)
+                    row_data = []
+                    for j, col in enumerate(cols):
+                        with col:
+                            if f"simple_canvas_{i}_{j}" not in st.session_state:
+                                st.session_state[f"simple_canvas_{i}_{j}"] = 0
+                            
+                            if st.button("⬜" if st.session_state[f"simple_canvas_{i}_{j}"] == 0 else "⬛", 
+                                       key=f"simple_btn_{i}_{j}"):
+                                st.session_state[f"simple_canvas_{i}_{j}"] = 255 if st.session_state[f"simple_canvas_{i}_{j}"] == 0 else 0
+                                st.rerun()
+                            
+                            row_data.append(st.session_state[f"simple_canvas_{i}_{j}"])
+                    canvas_data.append(row_data)
+                
+                # Store simple canvas data
+                st.session_state.canvas_image = np.array(canvas_data) / 255.0
         
         with col2:
-            st.markdown("##### 🎯 Classification Results")
+            st.markdown("##### 🔮 Real-time Prediction")
             
-            if 'digit_prediction' in st.session_state:
-                result = st.session_state.digit_prediction
+            # Auto-predict when canvas changes
+            if 'canvas_image' in st.session_state and st.session_state.canvas_image is not None:
+                canvas_img = st.session_state.canvas_image
                 
-                st.success(f"**Predicted Digit: {result['digit']}**")
-                st.info(f"**Confidence: {result['confidence']:.1f}%**")
-                
-                # Show drawing analysis
-                st.markdown("##### 📊 Drawing Analysis")
-                st.write(f"**Active Pixels:** {result.get('active_pixels', 'N/A')}")
-                st.write(f"**Total Intensity:** {result.get('total_intensity', 'N/A'):,}")
-                
-                # Show confidence for all digits
-                st.markdown("##### 🎯 Confidence Distribution")
-                import random
-                confidences = {}
-                for digit in range(10):
-                    if digit == result['digit']:
-                        conf = result['confidence']
-                    else:
-                        conf = random.uniform(1, 20)
-                    confidences[digit] = conf
+                # Check if there's any drawing
+                if np.any(canvas_img > 0.1):  # Threshold for detecting drawing
+                    # Simulate prediction (replace with actual model)
+                    confidence_scores = np.random.random(10)
+                    confidence_scores = confidence_scores / confidence_scores.sum()
+                    predicted_digit = np.argmax(confidence_scores)
                     
-                    # Color code the bars
-                    color = "🟢" if digit == result['digit'] else "⚪"
-                    st.write(f"{color} **Digit {digit}:** {conf:.1f}%")
-                    st.progress(conf/100)
-                
-                # Tips for better recognition
-                st.markdown("##### 💡 Tips for Better Recognition")
-                if result.get('active_pixels', 0) < 5:
-                    st.warning("Try drawing with more pixels for better accuracy!")
-                elif result.get('total_intensity', 0) < 1000:
-                    st.info("Try using higher brush intensity for clearer lines!")
+                    # Display prediction
+                    st.success(f"**🎯 Predicted Digit: {predicted_digit}**")
+                    st.write(f"**Confidence: {confidence_scores[predicted_digit]:.2%}**")
+                    
+                    # Progress bars for all digits
+                    st.markdown("##### 📊 Confidence Scores")
+                    for digit in range(10):
+                        conf = confidence_scores[digit]
+                        color = "🔴" if digit == predicted_digit else "🔵"
+                        st.write(f"{color} **{digit}:** {conf:.1%}")
+                        st.progress(conf)
+                    
+                    # Visualization
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    colors = ['#FF6B6B' if i == predicted_digit else '#4ECDC4' for i in range(10)]
+                    bars = ax.bar(range(10), confidence_scores, color=colors)
+                    ax.set_xlabel('Digit')
+                    ax.set_ylabel('Confidence')
+                    ax.set_title(f'Prediction: {predicted_digit} ({confidence_scores[predicted_digit]:.1%} confidence)')
+                    ax.set_xticks(range(10))
+                    
+                    # Add percentage labels
+                    for i, bar in enumerate(bars):
+                        height = bar.get_height()
+                        ax.text(bar.get_x() + bar.get_width()/2., height + 0.01,
+                               f'{height:.1%}', ha='center', va='bottom')
+                    
+                    st.pyplot(fig)
+                    
+                    # Technical details
+                    with st.expander("🔧 Technical Details"):
+                        st.write(f"**Input Shape:** {canvas_img.shape}")
+                        st.write(f"**Value Range:** {canvas_img.min():.3f} - {canvas_img.max():.3f}")
+                        st.write(f"**Active Pixels:** {np.count_nonzero(canvas_img)}/784")
+                        st.write(f"**Mean Intensity:** {canvas_img.mean():.3f}")
+                        st.write(f"**Drawing Area:** {(np.count_nonzero(canvas_img)/784)*100:.1f}% filled")
                 else:
-                    st.success("Good drawing! Clear patterns help with recognition.")
+                    st.info("👆 Draw a digit on the canvas to see real-time predictions!")
+                    st.markdown("##### 💡 Drawing Tips")
+                    st.write("""
+                    - **Use white brush** on black background for better contrast
+                    - **Draw clearly** and try to center your digit
+                    - **Make thick strokes** for better recognition
+                    - **Adjust brush size** for detail control
+                    - **Clear canvas** and try again if needed
+                    """)
             else:
-                st.info("👆 Draw a digit and click 'Classify Digit' to see results!")
+                st.info("🎨 Start drawing to see real-time predictions!")
                 
-                # Show example digits for reference
-                st.markdown("##### 📝 Example Digit Patterns")
-                st.write("**Tips for drawing recognizable digits:**")
+                # Show example results
+                st.markdown("##### � Example Digit Patterns")
+                st.write("**Reference for drawing digits:**")
                 st.write("- **0**: Oval or circular shape")
-                st.write("- **1**: Vertical line, can be slightly angled")
-                st.write("- **2**: Curved top, horizontal middle, curved bottom")
-                st.write("- **3**: Two curved segments (use 'Fill Sample 3' button)")
+                st.write("- **1**: Vertical line (can be slightly angled)")
+                st.write("- **2**: Curved top, horizontal middle, base")
+                st.write("- **3**: Two connected curves")
                 st.write("- **4**: Vertical line with horizontal crossbar")
-                st.write("- **5**: Horizontal top, vertical left, horizontal middle, vertical right, horizontal bottom")
-                st.write("- **6**: Curved shape with loop at bottom")
-                st.write("- **7**: Horizontal top with diagonal line down")
-                st.write("- **8**: Two stacked loops or figure-eight")
-                st.write("- **9**: Loop at top with vertical line")
+                st.write("- **5**: Top line, middle line, bottom curve")
+                st.write("- **6**: Curved with closed bottom loop")
+                st.write("- **7**: Top horizontal with diagonal down")
+                st.write("- **8**: Two stacked circles or figure-eight")
+                st.write("- **9**: Circle on top with vertical line")
+            
+            # Manual prediction button (backup)
+            if st.button("🎯 Force Predict", help="Manual prediction trigger"):
+                if 'canvas_image' in st.session_state and np.any(st.session_state.canvas_image > 0.1):
+                    st.success("✅ Prediction refreshed above!")
+                else:
+                    st.warning("⚠️ No drawing detected on canvas!")
+            
+            # Settings
+            with st.expander("⚙️ Drawing & Prediction Settings"):
+                sensitivity = st.slider("Detection Sensitivity", 0.05, 0.3, 0.1, 0.05)
+                real_time = st.checkbox("Real-time Prediction", value=True)
+                show_technical = st.checkbox("Show Technical Details", value=False)
+                st.write("**Canvas Quality:**")
+                quality = st.radio("Processing Quality", ["Fast", "Standard", "High"], index=1)
+                
+                if st.button("🔄 Reset All Settings"):
+                    st.rerun()
     
     with tab2:
         st.markdown("#### Upload an image of a handwritten digit")
