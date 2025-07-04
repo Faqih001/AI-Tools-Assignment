@@ -25,18 +25,51 @@ try:
         nlp = spacy.load("en_core_web_sm")
         SPACY_AVAILABLE = True
     except OSError:
-        SPACY_AVAILABLE = False
-        st.warning("spaCy English model not found. NLP features will be limited.")
+        # Try to download the model automatically
+        try:
+            import subprocess
+            import sys
+            st.info("📥 Downloading spaCy English model for first use...")
+            subprocess.check_call([sys.executable, "-m", "spacy", "download", "en_core_web_sm"], 
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            nlp = spacy.load("en_core_web_sm")
+            SPACY_AVAILABLE = True
+            st.success("✅ spaCy model downloaded and loaded successfully!")
+        except Exception:
+            SPACY_AVAILABLE = False
+            st.warning("⚠️ spaCy English model not available. Using basic NLP features.")
 except ImportError:
     SPACY_AVAILABLE = False
-    st.warning("spaCy not installed. NLP features will be limited.")
+    st.warning("⚠️ spaCy not installed. Using basic NLP features.")
 
 try:
     from textblob import TextBlob
+    import nltk
+    import ssl
+    
+    # Handle SSL certificates for NLTK downloads
+    try:
+        _create_unverified_https_context = ssl._create_unverified_context
+    except AttributeError:
+        pass
+    else:
+        ssl._create_default_https_context = _create_unverified_https_context
+    
+    # Download required NLTK data
+    try:
+        nltk.data.find('tokenizers/punkt')
+    except LookupError:
+        st.info("📥 Downloading NLTK data for first use...")
+        try:
+            nltk.download('punkt', quiet=True)
+            nltk.download('brown', quiet=True)
+            nltk.download('vader_lexicon', quiet=True)
+        except Exception as e:
+            st.warning(f"⚠️ Could not download NLTK data: {e}. Some NLP features may be limited.")
     TEXTBLOB_AVAILABLE = True
 except ImportError:
     TEXTBLOB_AVAILABLE = False
-    st.warning("TextBlob not installed. Sentiment analysis will be limited.")
+    st.warning("⚠️ TextBlob not installed. Using basic sentiment analysis.")
 
 # Try to import drawable canvas, fallback if not available
 try:
@@ -2125,98 +2158,237 @@ def review_analyzer_page():
         
         # Analyze button
         if st.button("🔍 Analyze Review", use_container_width=True) and review_text:
-            # Perform actual NLP analysis
-            import re
+            with st.spinner("Analyzing review..."):
+                # Perform advanced NLP analysis
+                import re
+                import string
+                from collections import Counter
+                
+                # Try to use advanced NLP libraries
+                try:
+                    from textblob import TextBlob
+                    textblob_available = True
+                except ImportError:
+                    textblob_available = False
+                
+                try:
+                    import spacy
+                    # Try to load the English model
+                    try:
+                        nlp = spacy.load("en_core_web_sm")
+                        spacy_available = True
+                    except OSError:
+                        spacy_available = False
+                except ImportError:
+                    spacy_available = False
+                
+                # Enhanced brand extraction with more brands and products
+                brand_patterns = {
+                    'Apple': r'\b(Apple|iPhone|iPad|MacBook|Mac|iOS|AirPods|Apple Watch|iMac|iWatch)\b',
+                    'Samsung': r'\b(Samsung|Galaxy|Note|Tab|S\d+|Note\d+)\b',
+                    'Nike': r'\b(Nike|Air Max|Jordan|Dunk|Air Force)\b',
+                    'Dell': r'\b(Dell|XPS|Inspiron|Alienware|Latitude)\b',
+                    'Sony': r'\b(Sony|PlayStation|PS[0-9]|Bravia|Xperia|WH-\d+)\b',
+                    'Google': r'\b(Google|Pixel|Android|Gmail|Chrome|Nest)\b',
+                    'Microsoft': r'\b(Microsoft|Windows|Xbox|Surface|Office|Teams)\b',
+                    'Amazon': r'\b(Amazon|Kindle|Echo|Alexa|Prime|Fire)\b',
+                    'Tesla': r'\b(Tesla|Model [0-9SXY]|Cybertruck|Powerwall)\b',
+                    'HP': r'\b(HP|Pavilion|Envy|Spectre|EliteBook)\b',
+                    'Lenovo': r'\b(Lenovo|ThinkPad|IdeaPad|Legion)\b',
+                    'LG': r'\b(LG|OLED|UltraGear|Gram)\b',
+                    'Asus': r'\b(Asus|ROG|ZenBook|VivoBook)\b'
+                }
+                
+                detected_brands = []
+                for brand, pattern in brand_patterns.items():
+                    if re.search(pattern, review_text, re.IGNORECASE):
+                        detected_brands.append(brand)
+                
+                # Advanced sentiment analysis
+                sentiment_results = {}
+                
+                # Method 1: TextBlob sentiment analysis
+                if textblob_available:
+                    try:
+                        blob = TextBlob(review_text)
+                        tb_polarity = blob.sentiment.polarity
+                        tb_subjectivity = blob.sentiment.subjectivity
+                        sentiment_results['textblob'] = {
+                            'polarity': tb_polarity,
+                            'subjectivity': tb_subjectivity,
+                            'sentiment': 'Positive' if tb_polarity > 0.1 else 'Negative' if tb_polarity < -0.1 else 'Neutral'
+                        }
+                    except Exception as e:
+                        st.warning(f"TextBlob analysis failed: {e}")
+                
+                # Method 2: spaCy analysis for entities and advanced features
+                entities = []
+                if spacy_available:
+                    try:
+                        doc = nlp(review_text)
+                        entities = [(ent.text, ent.label_) for ent in doc.ents]
+                    except Exception as e:
+                        st.warning(f"spaCy analysis failed: {e}")
+                
+                # Method 3: Enhanced rule-based sentiment analysis
+                # More comprehensive word lists with intensity scores
+                positive_words = {
+                    'excellent': 3, 'amazing': 3, 'outstanding': 3, 'fantastic': 3, 'superb': 3,
+                    'love': 2, 'great': 2, 'wonderful': 2, 'awesome': 2, 'brilliant': 2,
+                    'good': 1, 'nice': 1, 'pleasant': 1, 'satisfied': 1, 'happy': 1,
+                    'perfect': 3, 'incredible': 3, 'magnificent': 3, 'stunning': 3,
+                    'impressive': 2, 'remarkable': 2, 'comfortable': 1, 'recommend': 2
+                }
+                
+                negative_words = {
+                    'terrible': -3, 'awful': -3, 'horrible': -3, 'worst': -3, 'useless': -3,
+                    'bad': -2, 'poor': -2, 'disappointed': -2, 'frustrating': -2, 'annoying': -2,
+                    'slow': -1, 'expensive': -1, 'cheap': -1, 'mediocre': -1, 'faulty': -2,
+                    'broken': -3, 'defective': -3, 'unreliable': -2, 'flimsy': -2,
+                    'overpriced': -2, 'disappointing': -2, 'subpar': -2, 'inadequate': -2
+                }
+                
+                # Advanced sentiment calculation
+                text_lower = review_text.lower()
+                # Remove punctuation for better word matching
+                translator = str.maketrans('', '', string.punctuation)
+                clean_text = text_lower.translate(translator)
+                words = clean_text.split()
+                
+                sentiment_score = 0
+                pos_count = 0
+                neg_count = 0
+                total_intensity = 0
+                
+                for word in words:
+                    if word in positive_words:
+                        intensity = positive_words[word]
+                        sentiment_score += intensity
+                        pos_count += 1
+                        total_intensity += abs(intensity)
+                    elif word in negative_words:
+                        intensity = negative_words[word]
+                        sentiment_score += intensity
+                        neg_count += 1
+                        total_intensity += abs(intensity)
+                
+                # Normalize sentiment score
+                if total_intensity > 0:
+                    normalized_score = sentiment_score / total_intensity
+                else:
+                    normalized_score = 0
+                
+                # Combine multiple sentiment methods
+                final_sentiment_score = normalized_score
+                if textblob_available and 'textblob' in sentiment_results:
+                    # Weight TextBlob result (70%) with rule-based result (30%)
+                    final_sentiment_score = 0.7 * sentiment_results['textblob']['polarity'] + 0.3 * normalized_score
+                
+                # Determine final sentiment
+                if final_sentiment_score > 0.15:
+                    sentiment = "Positive"
+                elif final_sentiment_score < -0.15:
+                    sentiment = "Negative"
+                else:
+                    sentiment = "Neutral"
             
-            # Enhanced brand extraction with more brands and products
-            brand_patterns = {
-                'Apple': r'\b(Apple|iPhone|iPad|MacBook|Mac|iOS|AirPods|Apple Watch)\b',
-                'Samsung': r'\b(Samsung|Galaxy|Note|Tab)\b',
-                'Nike': r'\b(Nike|Air Max|Jordan|Dunk)\b',
-                'Dell': r'\b(Dell|XPS|Inspiron|Alienware)\b',
-                'Sony': r'\b(Sony|PlayStation|PS[0-9]|Bravia|Xperia)\b',
-                'Google': r'\b(Google|Pixel|Android|Gmail|Chrome)\b',
-                'Microsoft': r'\b(Microsoft|Windows|Xbox|Surface|Office)\b',
-                'Amazon': r'\b(Amazon|Kindle|Echo|Alexa|Prime)\b',
-                'Tesla': r'\b(Tesla|Model [0-9S]|Cybertruck)\b',
-                'HP': r'\b(HP|Pavilion|Envy|Spectre)\b'
-            }
-            
-            detected_brands = []
-            for brand, pattern in brand_patterns.items():
-                if re.search(pattern, review_text, re.IGNORECASE):
-                    detected_brands.append(brand)
-            
-            # Enhanced sentiment analysis with better word lists
-            positive_words = [
-                'love', 'amazing', 'great', 'fantastic', 'excellent', 'perfect', 'comfortable',
-                'outstanding', 'wonderful', 'awesome', 'brilliant', 'superb', 'impressive',
-                'satisfied', 'happy', 'pleased', 'recommend', 'best', 'good', 'nice',
-                'beautiful', 'stunning', 'incredible', 'magnificent', 'remarkable'
-            ]
-            
-            negative_words = [
-                'disappointed', 'poor', 'slow', 'bad', 'terrible', 'awful', 'expensive',
-                'overpriced', 'worst', 'horrible', 'useless', 'broken', 'defective',
-                'frustrating', 'annoying', 'cheap', 'flimsy', 'unreliable', 'faulty',
-                'disappointing', 'mediocre', 'subpar', 'inadequate', 'inferior'
-            ]
-            
-            # Count positive and negative words
-            text_lower = review_text.lower()
-            pos_count = sum(1 for word in positive_words if word in text_lower)
-            neg_count = sum(1 for word in negative_words if word in text_lower)
-            
-            # Calculate sentiment score based on word counts and text length
-            total_words = len(review_text.split())
-            pos_ratio = pos_count / max(total_words, 1)
-            neg_ratio = neg_count / max(total_words, 1)
-            
-            # More sophisticated sentiment calculation
-            if pos_count > 0 and neg_count == 0:
-                sentiment_score = min(0.8, 0.3 + pos_ratio * 2)
-                sentiment = "Positive"
-            elif neg_count > 0 and pos_count == 0:
-                sentiment_score = max(-0.8, -0.3 - neg_ratio * 2)
-                sentiment = "Negative"
-            elif pos_count > neg_count:
-                sentiment_score = min(0.7, 0.1 + (pos_ratio - neg_ratio) * 1.5)
-                sentiment = "Positive"
-            elif neg_count > pos_count:
-                sentiment_score = max(-0.7, -0.1 - (neg_ratio - pos_ratio) * 1.5)
-                sentiment = "Negative"
-            else:
-                sentiment_score = 0.0
-                sentiment = "Neutral"
-            
-            # Extract product features mentioned
-            feature_patterns = {
-                'camera': r'\b(camera|photo|picture|lens|zoom)\b',
-                'battery': r'\b(battery|charge|power|lasting)\b',
-                'display': r'\b(display|screen|resolution|bright)\b',
-                'performance': r'\b(performance|speed|fast|slow|lag)\b',
-                'design': r'\b(design|look|beautiful|ugly|style)\b',
-                'price': r'\b(price|cost|expensive|cheap|affordable)\b',
-                'quality': r'\b(quality|build|durable|sturdy|flimsy)\b',
-                'sound': r'\b(sound|audio|music|speaker|headphone)\b'
-            }
-            
-            detected_features = []
-            for feature, pattern in feature_patterns.items():
-                if re.search(pattern, review_text, re.IGNORECASE):
-                    detected_features.append(feature.title())
-            
-            st.session_state.review_analysis = {
-                'sentiment': sentiment,
-                'sentiment_score': sentiment_score,
-                'brands': detected_brands,
-                'features': detected_features,
-                'word_count': total_words,
-                'positive_words': pos_count,
-                'negative_words': neg_count,
-                'pos_ratio': pos_ratio,
-                'neg_ratio': neg_ratio
-            }
+                
+                # Extract product features mentioned with better patterns
+                feature_patterns = {
+                    'camera': r'\b(camera|photo|picture|lens|zoom|megapixel|selfie|portrait)\b',
+                    'battery': r'\b(battery|charge|power|lasting|hours|life|drain)\b',
+                    'display': r'\b(display|screen|resolution|bright|dim|color|pixel)\b',
+                    'performance': r'\b(performance|speed|fast|slow|lag|responsive|smooth)\b',
+                    'design': r'\b(design|look|beautiful|ugly|style|build|appearance)\b',
+                    'price': r'\b(price|cost|expensive|cheap|affordable|value|money)\b',
+                    'quality': r'\b(quality|build|durable|sturdy|flimsy|solid|premium)\b',
+                    'sound': r'\b(sound|audio|music|speaker|headphone|bass|volume)\b',
+                    'storage': r'\b(storage|memory|space|GB|TB|capacity)\b',
+                    'connectivity': r'\b(wifi|bluetooth|5G|4G|network|signal)\b'
+                }
+                
+                detected_features = []
+                feature_sentiments = {}
+                for feature, pattern in feature_patterns.items():
+                    if re.search(pattern, review_text, re.IGNORECASE):
+                        detected_features.append(feature.title())
+                        # Try to determine sentiment about this specific feature
+                        feature_context = []
+                        words = review_text.lower().split()
+                        for i, word in enumerate(words):
+                            if re.search(pattern.replace(r'\b', '').replace(r'(', '').replace(r')', ''), word):
+                                # Get context around the feature mention
+                                start = max(0, i-3)
+                                end = min(len(words), i+4)
+                                feature_context.extend(words[start:end])
+                        
+                        # Calculate sentiment for this feature
+                        feature_score = 0
+                        for word in feature_context:
+                            if word in positive_words:
+                                feature_score += positive_words[word]
+                            elif word in negative_words:
+                                feature_score += negative_words[word]
+                        
+                        if feature_score > 0:
+                            feature_sentiments[feature] = "Positive"
+                        elif feature_score < 0:
+                            feature_sentiments[feature] = "Negative"
+                        else:
+                            feature_sentiments[feature] = "Neutral"
+                
+                # Calculate confidence based on multiple factors
+                confidence_factors = []
+                
+                # Factor 1: Length of review (longer reviews generally more reliable)
+                word_count = len(review_text.split())
+                length_confidence = min(1.0, word_count / 50)  # Max confidence at 50+ words
+                confidence_factors.append(length_confidence)
+                
+                # Factor 2: Presence of sentiment words
+                sentiment_word_ratio = (pos_count + neg_count) / max(word_count, 1)
+                sentiment_confidence = min(1.0, sentiment_word_ratio * 10)
+                confidence_factors.append(sentiment_confidence)
+                
+                # Factor 3: TextBlob subjectivity (if available)
+                if textblob_available and 'textblob' in sentiment_results:
+                    subjectivity_confidence = sentiment_results['textblob']['subjectivity']
+                    confidence_factors.append(subjectivity_confidence)
+                
+                # Factor 4: Consistency between methods
+                if textblob_available and 'textblob' in sentiment_results:
+                    tb_sentiment = sentiment_results['textblob']['sentiment']
+                    consistency = 1.0 if tb_sentiment == sentiment else 0.5
+                    confidence_factors.append(consistency)
+                
+                overall_confidence = sum(confidence_factors) / len(confidence_factors)
+                
+                st.session_state.review_analysis = {
+                    'sentiment': sentiment,
+                    'sentiment_score': final_sentiment_score,
+                    'confidence': overall_confidence,
+                    'brands': detected_brands,
+                    'features': detected_features,
+                    'feature_sentiments': feature_sentiments,
+                    'entities': entities,
+                    'word_count': word_count,
+                    'positive_words': pos_count,
+                    'negative_words': neg_count,
+                    'textblob_available': textblob_available,
+                    'spacy_available': spacy_available,
+                    'methods_used': []
+                }
+                
+                # Track which methods were used
+                if textblob_available:
+                    st.session_state.review_analysis['methods_used'].append('TextBlob')
+                    st.session_state.review_analysis['textblob_polarity'] = sentiment_results['textblob']['polarity']
+                    st.session_state.review_analysis['textblob_subjectivity'] = sentiment_results['textblob']['subjectivity']
+                
+                if spacy_available:
+                    st.session_state.review_analysis['methods_used'].append('spaCy')
+                
+                st.session_state.review_analysis['methods_used'].append('Rule-based')
     
     with col2:
         st.markdown("#### 🎯 Analysis Results")
@@ -2224,17 +2396,40 @@ def review_analyzer_page():
         if 'review_analysis' in st.session_state:
             result = st.session_state.review_analysis
             
-            # Sentiment analysis
+            # Display analysis methods used
+            st.markdown("##### 🔧 Analysis Methods")
+            methods_str = ", ".join(result['methods_used'])
+            st.write(f"**Methods used:** {methods_str}")
+            if not result['textblob_available']:
+                st.warning("⚠️ TextBlob not available - using basic analysis")
+            if not result['spacy_available']:
+                st.warning("⚠️ spaCy model not available - entity extraction limited")
+            
+            # Enhanced sentiment analysis display
             st.markdown("##### 😊 Sentiment Analysis")
             sentiment_color = "green" if result['sentiment'] == "Positive" else "red" if result['sentiment'] == "Negative" else "gray"
             st.markdown(f"**Sentiment:** <span style='color:{sentiment_color}'>{result['sentiment']}</span>", unsafe_allow_html=True)
             st.write(f"**Score:** {result['sentiment_score']:.3f}")
+            st.write(f"**Confidence:** {result['confidence']:.1%}")
             
-            # Progress bar for sentiment
-            if result['sentiment_score'] >= 0:
-                st.progress(result['sentiment_score'])
-            else:
-                st.progress(abs(result['sentiment_score']))
+            # Progress bar for sentiment with proper scaling
+            sentiment_display = (result['sentiment_score'] + 1) / 2  # Scale from [-1,1] to [0,1]
+            st.progress(sentiment_display)
+            
+            # TextBlob specific results
+            if result['textblob_available']:
+                st.markdown("##### 📊 TextBlob Analysis")
+                col_tb1, col_tb2 = st.columns(2)
+                with col_tb1:
+                    st.write(f"**Polarity:** {result['textblob_polarity']:.3f}")
+                with col_tb2:
+                    st.write(f"**Subjectivity:** {result['textblob_subjectivity']:.3f}")
+            
+            # Entity extraction
+            if result['entities']:
+                st.markdown("##### 🏷️ Named Entities Detected")
+                for entity, label in result['entities']:
+                    st.write(f"- **{entity}** ({label})")
             
             # Brand extraction
             st.markdown("##### 🏢 Brands/Products Detected")
@@ -2244,11 +2439,13 @@ def review_analyzer_page():
             else:
                 st.write("No major brands detected")
             
-            # Feature extraction
-            st.markdown("##### 🎯 Product Features Mentioned")
+            # Enhanced feature extraction with sentiment
+            st.markdown("##### 🎯 Product Features & Sentiment")
             if result['features']:
                 for feature in result['features']:
-                    st.write(f"- **{feature}**")
+                    feature_sentiment = result['feature_sentiments'].get(feature.lower(), 'Neutral')
+                    emoji = "😊" if feature_sentiment == "Positive" else "😞" if feature_sentiment == "Negative" else "😐"
+                    st.write(f"- **{feature}** {emoji} ({feature_sentiment})")
             else:
                 st.write("No specific features mentioned")
             
@@ -2262,31 +2459,46 @@ def review_analyzer_page():
                 st.write(f"**Negative Words:** {result['negative_words']}")
             
             with col_b:
-                st.write(f"**Positive Ratio:** {result['pos_ratio']:.3f}")
-                st.write(f"**Negative Ratio:** {result['neg_ratio']:.3f}")
+                pos_ratio = result['positive_words'] / max(result['word_count'], 1)
+                neg_ratio = result['negative_words'] / max(result['word_count'], 1)
+                st.write(f"**Positive Ratio:** {pos_ratio:.3f}")
+                st.write(f"**Negative Ratio:** {neg_ratio:.3f}")
                 sentiment_strength = "Strong" if abs(result['sentiment_score']) > 0.5 else "Moderate" if abs(result['sentiment_score']) > 0.2 else "Weak"
                 st.write(f"**Sentiment Strength:** {sentiment_strength}")
             
-            # Enhanced recommendation
+            # Enhanced recommendation with confidence
             st.markdown("##### 💡 Insights & Recommendations")
+            confidence_level = "High" if result['confidence'] > 0.7 else "Medium" if result['confidence'] > 0.4 else "Low"
+            
             if result['sentiment'] == "Positive":
                 if result['sentiment_score'] > 0.5:
-                    st.success("🌟 Highly positive review! This product seems to exceed expectations.")
+                    st.success(f"🌟 Highly positive review! This product seems to exceed expectations. (Confidence: {confidence_level})")
                 else:
-                    st.success("👍 Positive review with some good feedback about the product.")
+                    st.success(f"👍 Positive review with some good feedback about the product. (Confidence: {confidence_level})")
             elif result['sentiment'] == "Negative":
                 if result['sentiment_score'] < -0.5:
-                    st.error("⚠️ Strongly negative review - significant concerns need addressing.")
+                    st.error(f"⚠️ Strongly negative review - significant concerns need addressing. (Confidence: {confidence_level})")
                 else:
-                    st.error("⚠️ Negative review - some issues mentioned that could be improved.")
+                    st.error(f"⚠️ Negative review - some issues mentioned that could be improved. (Confidence: {confidence_level})")
             else:
-                st.info("📊 Neutral review - balanced or factual feedback without strong emotions.")
+                st.info(f"📊 Neutral review - balanced or factual feedback without strong emotions. (Confidence: {confidence_level})")
             
             # Feature-specific insights
             if result['features']:
                 st.write("**Key areas mentioned:**")
                 for feature in result['features']:
-                    st.write(f"- {feature} is discussed in this review")
+                    feature_sentiment = result['feature_sentiments'].get(feature.lower(), 'Neutral')
+                    if feature_sentiment != 'Neutral':
+                        st.write(f"- {feature}: **{feature_sentiment}** sentiment detected")
+                    else:
+                        st.write(f"- {feature} is discussed in this review")
+            
+            # Analysis quality indicators
+            if result['confidence'] < 0.5:
+                st.warning("⚠️ Low confidence analysis - consider longer review text for better accuracy")
+            
+            if result['word_count'] < 10:
+                st.info("💡 Short review detected - longer reviews provide more accurate analysis")
                     
         else:
             st.info("👆 Enter a review and click 'Analyze Review' to see results!")
